@@ -358,7 +358,7 @@ elif page == "🔮 Energy Consumption Forecast":
     st.title("🔮 Forecasting Energy Consumption with Prophet & Random Forest")
     st.markdown("Compare time series predictions from Prophet and Random Forest.")
 
-    # 📈 Seçim Alanları
+    # 📌 Seçim Alanları
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
     df_forecast = df[["country", "year"] + energy_cols].dropna()
     countries = sorted(df_forecast["country"].unique())
@@ -400,7 +400,7 @@ elif page == "🔮 Energy Consumption Forecast":
     future_df_rf = pd.DataFrame({"year": future_years_rf})
     predictions_rf = rf_model.predict(future_df_rf)
 
-    # 🥾 Tahmin Karşılaştırması
+    # 🤞 Tahmin Karşılaştırması
     st.subheader("🔍 Prophet vs Random Forest Forecast Comparison")
     comparison_df = pd.DataFrame({
         "Year": future_years_rf,
@@ -409,7 +409,7 @@ elif page == "🔮 Energy Consumption Forecast":
     })
     st.dataframe(comparison_df)
 
-    # 🌚 Doğruluk Analizi (Bağımsız Değerlendirme)
+    # 🌟 Doğruluk Analizi (Bağımsız Değerlendirme)
     st.subheader("📊 Backtest: Prophet & Random Forest Model Evaluation")
 
     eval_country = st.selectbox("📍 Select Country for Evaluation", countries, key="eval_country")
@@ -462,7 +462,7 @@ elif page == "🔮 Energy Consumption Forecast":
         rf_test = df_eval[df_eval["year"].between(eval_range[0], eval_range[1])].copy()
 
         rf_model_eval = RandomForestRegressor(n_estimators=100, random_state=42)
-        if not rf_train.empty and not rf_test.empty:
+        if len(rf_train) > 0 and len(rf_test) > 0:
             rf_model_eval.fit(rf_train[["year"]], rf_train["value"])
             rf_preds = rf_model_eval.predict(rf_test[["year"]])
 
@@ -473,9 +473,7 @@ elif page == "🔮 Energy Consumption Forecast":
             y_true_rf = y_true_rf[mask_rf]
             y_pred_rf = y_pred_rf[mask_rf]
 
-            if len(y_true_rf) == 0 or len(y_pred_rf) == 0:
-                st.warning("⚠️ No valid data after NaN filtering for Random Forest.")
-            else:
+            if len(y_true_rf) > 0:
                 mae_rf = mean_absolute_error(y_true_rf, y_pred_rf)
                 rmse_rf = mean_squared_error(y_true_rf, y_pred_rf, squared=False)
                 r2_rf = r2_score(y_true_rf, y_pred_rf)
@@ -485,5 +483,7 @@ elif page == "🔮 Energy Consumption Forecast":
                 - **RF RMSE:** {rmse_rf:.2f} kWh  
                 - **RF R² Score:** {r2_rf:.2f}
                 """)
+            else:
+                st.warning("⚠️ No valid RF data after NaN filtering.")
         else:
-            st.warning("⚠️ Insufficient data to train or test Random Forest.")
+            st.warning("⚠️ Not enough RF training or testing data.")
