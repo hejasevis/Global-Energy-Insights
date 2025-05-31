@@ -410,8 +410,8 @@ elif page == "🔮 Energy Consumption Forecast":
     eval_data["year"] = eval_data["ds"].dt.year
 
     if eval_data["year"].min() < 2013:
-    train_eval = eval_data[eval_data["year"] < 2013]
-    test_eval = eval_data[eval_data["year"].between(2013, 2023)]
+        train_eval = eval_data[eval_data["year"] < 2013]
+        test_eval = eval_data[eval_data["year"].between(2013, 2023)]
 
     if test_eval.empty:
         st.warning("⚠️ No actual data available for 2013–2023 in this selection.")
