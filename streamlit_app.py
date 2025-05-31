@@ -358,7 +358,7 @@ elif page == "🔮 Energy Consumption Forecast":
     st.title("🔮 Forecasting Energy Consumption with Prophet & Random Forest")
     st.markdown("Compare time series predictions from Prophet and Random Forest.")
 
-    # 📌 Seçim Alanları
+    # 📈 Seçim Alanları
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
     df_forecast = df[["country", "year"] + energy_cols].dropna()
     countries = sorted(df_forecast["country"].unique())
@@ -367,7 +367,7 @@ elif page == "🔮 Energy Consumption Forecast":
     selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
     future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
 
-    # 📈 Prophet Model
+    # 📊 Prophet Model
     st.subheader("📈 Prophet Forecast")
     country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
 
@@ -409,7 +409,7 @@ elif page == "🔮 Energy Consumption Forecast":
     })
     st.dataframe(comparison_df)
 
-    # 🏋️ Doğruluk Analizi (Bağımsız Değerlendirme)
+    # 🌚 Doğruluk Analizi (Bağımsız Değerlendirme)
     st.subheader("📊 Backtest: Prophet & Random Forest Model Evaluation")
 
     eval_country = st.selectbox("📍 Select Country for Evaluation", countries, key="eval_country")
@@ -425,50 +425,44 @@ elif page == "🔮 Energy Consumption Forecast":
     else:
         st.markdown("### 🔎 Prophet Evaluation")
         prophet_df = df_eval[df_eval["year"] < eval_range[0]].copy()
+        prophet_df.columns = ["ds", "y"]
+        prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
 
-        if prophet_df.empty or len(prophet_df) < 3:
-            st.warning("⚠️ Not enough historical data before selected evaluation range for Prophet.")
-        else:
-            prophet_df.columns = ["ds", "y"]
-            prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
+        future_years_eval = eval_range[1] - eval_range[0] + 1
+        model_eval = Prophet(yearly_seasonality=True)
+        model_eval.fit(prophet_df)
+        future_eval = model_eval.make_future_dataframe(periods=future_years_eval, freq="Y")
+        forecast_eval = model_eval.predict(future_eval)
 
-            future_years_eval = eval_range[1] - eval_range[0] + 1
-            model_eval = Prophet(yearly_seasonality=True)
-            model_eval.fit(prophet_df)
-            future_eval = model_eval.make_future_dataframe(periods=future_years_eval, freq="Y")
-            forecast_eval = model_eval.predict(future_eval)
+        forecast_eval_trim = forecast_eval[['ds', 'yhat']]
+        actual_eval = eval_df.copy()
+        actual_eval["ds"] = pd.to_datetime(actual_eval["year"], format="%Y")
+        merged_eval = pd.merge(actual_eval, forecast_eval_trim, on="ds", how="inner")
 
-            forecast_eval_trim = forecast_eval[['ds', 'yhat']]
-            actual_eval = eval_df.copy()
-            actual_eval["ds"] = pd.to_datetime(actual_eval["year"], format="%Y")
-            merged_eval = pd.merge(actual_eval, forecast_eval_trim, on="ds", how="inner")
+        y_true = merged_eval["value"].values
+        y_pred = merged_eval["yhat"].values
 
-            y_true = merged_eval["value"].values
-            y_pred = merged_eval["yhat"].values
+        mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
+        y_true = y_true[mask]
+        y_pred = y_pred[mask]
 
-            mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
-            y_true = y_true[mask]
-            y_pred = y_pred[mask]
+        if len(y_true) > 0:
+            mae = mean_absolute_error(y_true, y_pred)
+            rmse = mean_squared_error(y_true, y_pred, squared=False)
+            r2 = r2_score(y_true, y_pred)
 
-            if len(y_true) > 0:
-                mae = mean_absolute_error(y_true, y_pred)
-                rmse = mean_squared_error(y_true, y_pred, squared=False)
-                r2 = r2_score(y_true, y_pred)
-
-                st.markdown(f"""
-                - **Prophet MAE:** {mae:.2f} kWh  
-                - **Prophet RMSE:** {rmse:.2f} kWh  
-                - **Prophet R² Score:** {r2:.2f}
-                """)
+            st.markdown(f"""
+            - **Prophet MAE:** {mae:.2f} kWh  
+            - **Prophet RMSE:** {rmse:.2f} kWh  
+            - **Prophet R² Score:** {r2:.2f}
+            """)
 
         st.markdown("### 🔎 Random Forest Evaluation")
         rf_train = df_eval[df_eval["year"] < eval_range[0]].copy()
         rf_test = df_eval[df_eval["year"].between(eval_range[0], eval_range[1])].copy()
 
-        if rf_train.empty or len(rf_train) < 3:
-            st.warning("⚠️ Not enough training data before evaluation range for Random Forest.")
-        else:
-            rf_model_eval = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf_model_eval = RandomForestRegressor(n_estimators=100, random_state=42)
+        if not rf_train.empty and not rf_test.empty:
             rf_model_eval.fit(rf_train[["year"]], rf_train["value"])
             rf_preds = rf_model_eval.predict(rf_test[["year"]])
 
@@ -479,7 +473,9 @@ elif page == "🔮 Energy Consumption Forecast":
             y_true_rf = y_true_rf[mask_rf]
             y_pred_rf = y_pred_rf[mask_rf]
 
-            if len(y_true_rf) > 0:
+            if len(y_true_rf) == 0 or len(y_pred_rf) == 0:
+                st.warning("⚠️ No valid data after NaN filtering for Random Forest.")
+            else:
                 mae_rf = mean_absolute_error(y_true_rf, y_pred_rf)
                 rmse_rf = mean_squared_error(y_true_rf, y_pred_rf, squared=False)
                 r2_rf = r2_score(y_true_rf, y_pred_rf)
@@ -489,3 +485,5 @@ elif page == "🔮 Energy Consumption Forecast":
                 - **RF RMSE:** {rmse_rf:.2f} kWh  
                 - **RF R² Score:** {r2_rf:.2f}
                 """)
+        else:
+            st.warning("⚠️ Insufficient data to train or test Random Forest.")
