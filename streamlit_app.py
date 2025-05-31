@@ -424,77 +424,77 @@ elif page == "🔮 Energy Consumption Forecast":
             st.dataframe(rf_forecast)
 
     # ---------------- BACKTEST KISMI ----------------
-    st.markdown("## 🧪 Backtesting (2013–2023)")
+st.markdown("## 🧪 Backtesting (2013–2023)")
 
-    backtest_start, backtest_end = 2013, 2023
+backtest_start, backtest_end = 2013, 2023
 
-    # Prophet Backtest
-    st.subheader("📘 Prophet Backtest")
-    if not country_data.empty:
-        bt_prophet_df = prophet_df[prophet_df["ds"].dt.year <= backtest_end]
-        train_df = bt_prophet_df[bt_prophet_df["ds"].dt.year <= backtest_start - 1]
-        test_df = bt_prophet_df[(bt_prophet_df["ds"].dt.year >= backtest_start) & (bt_prophet_df["ds"].dt.year <= backtest_end)]
+# Prophet Backtest
+st.subheader("📘 Prophet Backtest")
 
-        if test_df.empty or train_df.empty:
-            st.warning("Insufficient data for Prophet backtest.")
-        else:
-            bt_model = Prophet(yearly_seasonality=True)
-            bt_model.fit(train_df)
+bt_prophet_df = prophet_df[prophet_df["ds"].dt.year <= backtest_end]
+train_df = bt_prophet_df[bt_prophet_df["ds"].dt.year <= backtest_start - 1]
+test_df = bt_prophet_df[(bt_prophet_df["ds"].dt.year >= backtest_start) & (bt_prophet_df["ds"].dt.year <= backtest_end)]
 
-            future_bt_df = bt_model.make_future_dataframe(periods=(backtest_end - backtest_start + 1), freq="Y")
-            future_bt_df = future_bt_df[future_bt_df["ds"].dt.year >= backtest_start]
-            bt_forecast = bt_model.predict(future_bt_df)
+if test_df.empty or train_df.empty:
+    st.warning("Insufficient data for Prophet backtest.")
+else:
+    bt_model = Prophet(yearly_seasonality=True)
+    bt_model.fit(train_df)
 
-            y_true = test_df["y"].values
-            y_pred = bt_forecast["yhat"].values[:len(y_true)]
+    future_bt_df = bt_model.make_future_dataframe(periods=(backtest_end - backtest_start + 1), freq="Y")
+    future_bt_df = future_bt_df[future_bt_df["ds"].dt.year >= backtest_start]
+    bt_forecast = bt_model.predict(future_bt_df)
 
-            rmse = mean_squared_error(y_true, y_pred, squared=False)
-            mae = mean_absolute_error(y_true, y_pred)
-            mape = mean_absolute_percentage_error(y_true, y_pred) * 100
+    y_true = test_df["y"].values
+    y_pred = bt_forecast["yhat"].values[:len(y_true)]
 
-            st.markdown(f"""
-            **🔍 Prophet Backtest Metrics:**
-            - RMSE: `{rmse:.2f}`
-            - MAE: `{mae:.2f}`
-            - MAPE: `{mape:.2f}%`
-            """)
+    rmse = mean_squared_error(y_true, y_pred, squared=False)
+    mae = mean_absolute_error(y_true, y_pred)
+    mape = mean_absolute_percentage_error(y_true, y_pred) * 100
 
-            fig3 = go.Figure()
-            fig3.add_trace(go.Scatter(x=test_df["ds"].dt.year, y=y_true, mode="lines+markers", name="Actual"))
-            fig3.add_trace(go.Scatter(x=test_df["ds"].dt.year, y=y_pred, mode="lines+markers", name="Predicted"))
-            st.plotly_chart(fig3, use_container_width=True)
+    st.markdown(f"""
+    **🔍 Prophet Backtest Metrics:**
+    - RMSE: `{rmse:.2f}`
+    - MAE: `{mae:.2f}`
+    - MAPE: `{mape:.2f}%`
+    """)
 
-    # Random Forest Backtest
-    st.subheader("🌲 Random Forest Backtest")
-    if not country_data.empty:
-        train_rf = rf_df[rf_df["ds"] <= backtest_start - 1]
-        test_rf = rf_df[(rf_df["ds"] >= backtest_start) & (rf_df["ds"] <= backtest_end)]
+    fig3 = go.Figure()
+    fig3.add_trace(go.Scatter(x=test_df["ds"].dt.year, y=y_true, mode="lines+markers", name="Actual"))
+    fig3.add_trace(go.Scatter(x=test_df["ds"].dt.year, y=y_pred, mode="lines+markers", name="Predicted"))
+    st.plotly_chart(fig3, use_container_width=True)
 
-        if test_rf.empty or train_rf.empty:
-            st.warning("Insufficient data for Random Forest backtest.")
-        else:
-            X_train_rf = train_rf[["ds"]]
-            y_train_rf = train_rf["y"]
-            X_test_rf = test_rf[["ds"]]
-            y_test_rf = test_rf["y"]
+# Random Forest Backtest
+st.subheader("🌲 Random Forest Backtest")
 
-            rf_bt_model = RandomForestRegressor(n_estimators=100, random_state=42)
-            rf_bt_model.fit(X_train_rf, y_train_rf)
-            y_pred_rf = rf_bt_model.predict(X_test_rf)
+train_rf = rf_df[rf_df["ds"] <= backtest_start - 1]
+test_rf = rf_df[(rf_df["ds"] >= backtest_start) & (rf_df["ds"] <= backtest_end)]
 
-            rmse_rf = mean_squared_error(y_test_rf, y_pred_rf, squared=False)
-            mae_rf = mean_absolute_error(y_test_rf, y_pred_rf)
-            mape_rf = mean_absolute_percentage_error(y_test_rf, y_pred_rf) * 100
+if test_rf.empty or train_rf.empty:
+    st.warning("Insufficient data for Random Forest backtest.")
+else:
+    X_train_rf = train_rf[["ds"]]
+    y_train_rf = train_rf["y"]
+    X_test_rf = test_rf[["ds"]]
+    y_test_rf = test_rf["y"]
 
-            st.markdown(f"""
-            **🔍 Random Forest Backtest Metrics:**
-            - RMSE: `{rmse_rf:.2f}`
-            - MAE: `{mae_rf:.2f}`
-            - MAPE: `{mape_rf:.2f}%`
-            """)
+    rf_bt_model = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_bt_model.fit(X_train_rf, y_train_rf)
+    y_pred_rf = rf_bt_model.predict(X_test_rf)
 
-            fig4 = go.Figure()
-            fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_test_rf, mode="lines+markers", name="Actual"))
-            fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_pred_rf, mode="lines+markers", name="Predicted"))
-            st.plotly_chart(fig4, use_container_width=True)
+    rmse_rf = mean_squared_error(y_test_rf, y_pred_rf, squared=False)
+    mae_rf = mean_absolute_error(y_test_rf, y_pred_rf)
+    mape_rf = mean_absolute_percentage_error(y_test_rf, y_pred_rf) * 100
+
+    st.markdown(f"""
+    **🔍 Random Forest Backtest Metrics:**
+    - RMSE: `{rmse_rf:.2f}`
+    - MAE: `{mae_rf:.2f}`
+    - MAPE: `{mape_rf:.2f}%`
+    """)
+
+    fig4 = go.Figure()
+    fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_test_rf, mode="lines+markers", name="Actual"))
+    fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_pred_rf, mode="lines+markers", name="Predicted"))
+    st.plotly_chart(fig4, use_container_width=True)
 
