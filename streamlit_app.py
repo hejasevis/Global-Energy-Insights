@@ -424,7 +424,6 @@ elif page == "🔮 Energy Consumption Forecast":
         y_true = test_eval["y"].values
         y_pred = forecast_eval.tail(len(test_eval))["yhat"].values
 
-        # NaN varsa temizle
         mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
         y_true = y_true[mask]
         y_pred = y_pred[mask]
@@ -444,3 +443,4 @@ elif page == "🔮 Energy Consumption Forecast":
         fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=y_pred, name="Prophet Prediction"))
         fig_eval.update_layout(title="Actual vs Prophet Prediction (2013–2023)", xaxis_title="Year", yaxis_title="Consumption")
         st.plotly_chart(fig_eval)
+
