@@ -341,11 +341,9 @@ elif page == "🗺 Country vs Energy Type":
         for _, row in avg_df.iterrows():
             st.markdown(f"- `{row['Energy Source'].replace('_consumption', '').title()}`: **{row['Percentage']}%**")
             
-
-# 🔮 Energy Consumption Forecast
+    # 🔮 Energy Consumption Forecast
 elif page == "🔮 Energy Consumption Forecast":
     st.title("🔮 Forecasting Energy Consumption")
-    st.markdown("Predict future consumption for a selected country and energy source using time series modeling (Prophet).")
 
     try:
         from prophet import Prophet
@@ -353,14 +351,16 @@ elif page == "🔮 Energy Consumption Forecast":
     except ImportError:
         st.error("❌ Prophet is not installed. Please add `prophet` to your requirements.txt file.")
 
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
+    import numpy as np
+
     # Enerji tüketim sütunlarını al
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
     df_forecast = df[["country", "year"] + energy_cols].dropna()
 
-    # Ülke ve enerji türü seçimi
     countries = sorted(df_forecast["country"].unique())
     selected_country = st.selectbox("🌍 Select a Country:", countries)
-
     selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
 
     # Seçilen ülke ve kaynak için veri hazırlığı
@@ -370,121 +370,124 @@ elif page == "🔮 Energy Consumption Forecast":
     if country_data.empty:
         st.warning("No data available for this selection.")
     else:
-        # Prophet formatı: ds (date), y (value)
-        country_data.columns = ["ds", "y"]
-        country_data["ds"] = pd.to_datetime(country_data["ds"], format="%Y")
+        ### Prophet için veri hazırlığı
+        prophet_df = country_data.copy()
+        prophet_df.columns = ["ds", "y"]
+        prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
 
-        # Prophet modeli
-        model = Prophet(yearly_seasonality=True)
-        model.fit(country_data)
+        ### Random Forest için veri hazırlığı
+        rf_df = country_data.copy()
+        rf_df.columns = ["ds", "y"]
+        rf_df["ds"] = rf_df["ds"].astype(int)
 
-        # Kullanıcıdan tahmin yılı sayısı
-        future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
+        future_years = st.slider("🗓️ Years to Predict (Future):", 1, 20, 5)
+        last_year = rf_df["ds"].max()
+        future_years_list = list(range(last_year + 1, last_year + future_years + 1))
 
-        future = model.make_future_dataframe(periods=future_years, freq="Y")
-        forecast = model.predict(future)
+        # ---------- GENEL TAHMİN ----------
+        st.markdown("## 🔮 Future Forecasting")
 
-        # Tahmin grafiği
-        st.markdown("### 📈 Forecast Plot")
-        fig1 = plot_plotly(model, forecast)
-        fig1.update_layout(
-            height=600,
-            title=f"{selected_country} – Forecast of {selected_source.replace('_consumption', '').title()} Consumption"
-        )
-        st.plotly_chart(fig1, use_container_width=True)
+        col1, col2 = st.columns(2)
 
-        # Tahmin tablosu
-        st.markdown("### 📋 Forecasted Values")
-        forecast_display = forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(future_years)
-        forecast_display.columns = ["Year", "Prediction", "Lower Bound", "Upper Bound"]
-        forecast_display["Year"] = forecast_display["Year"].dt.year
-        st.dataframe(forecast_display)
-    
-        # Yorum
-        st.markdown("### ⚡Insights")
+        with col1:
+            st.subheader("📘 Prophet Forecast")
+            model = Prophet(yearly_seasonality=True)
+            model.fit(prophet_df)
 
-        # Yıl bazlı fark hesapla
-        future_diff = forecast_display["Prediction"].diff().dropna()
-        avg_growth = future_diff.mean()
-        trend = "increasing" if avg_growth > 0 else "decreasing"
-        direction_arrow = "📈" if avg_growth > 0 else "📉"
+            future = model.make_future_dataframe(periods=future_years, freq="Y")
+            forecast = model.predict(future)
 
-        # Ortalama büyüme yüzdesi
-        first_val = forecast_display["Prediction"].iloc[0]
-        last_val = forecast_display["Prediction"].iloc[-1]
-        growth_percent = ((last_val - first_val) / first_val) * 100 if first_val != 0 else 0
+            fig1 = plot_plotly(model, forecast)
+            st.plotly_chart(fig1, use_container_width=True)
 
-        # Güven aralığı yorumu
-        forecast_display["uncertainty"] = forecast_display["Upper Bound"] - forecast_display["Lower Bound"]
-        avg_uncertainty = forecast_display["uncertainty"].mean()
+            future_forecast = forecast[["ds", "yhat"]].tail(future_years)
+            future_forecast["ds"] = future_forecast["ds"].dt.year
+            st.dataframe(future_forecast.rename(columns={"ds": "Year", "yhat": "Prediction"}))
 
-        st.markdown(f"""
-        - {direction_arrow} **The predicted trend is {trend}.**
-        - The average yearly change is approximately **{avg_growth:,.0f} kWh**.
-        - From {forecast_display['Year'].iloc[0]} to {forecast_display['Year'].iloc[-1]}, the predicted consumption changes by **{growth_percent:.2f}%**.
-        - The average uncertainty in prediction is around **±{avg_uncertainty:,.0f} kWh**, which indicates {"high" if avg_uncertainty > first_val * 0.3 else "reasonable"} model confidence.
-        """)
+        with col2:
+            st.subheader("🌲 Random Forest Forecast")
+            X_rf = rf_df[["ds"]]
+            y_rf = rf_df["y"]
+            rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+            rf_model.fit(X_rf, y_rf)
 
-        st.caption("📘 This summary is generated based on model outputs.")
-        
-        #Backtesting
-        from sklearn.ensemble import RandomForestRegressor
-        from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
-        import numpy as np
+            future_X = pd.DataFrame(future_years_list, columns=["ds"])
+            rf_preds = rf_model.predict(future_X)
 
-        st.markdown("### 🧪 Backtesting (Random Forest) – 2013–2023")
+            rf_forecast = pd.DataFrame({"Year": future_years_list, "Prediction": rf_preds})
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(x=rf_forecast["Year"], y=rf_forecast["Prediction"], mode="lines+markers", name="RF Forecast"))
+            st.plotly_chart(fig2, use_container_width=True)
+            st.dataframe(rf_forecast)
 
-        # Yıllık verileri hazırla
-        country_data["ds"] = country_data["ds"].dt.year
-        X = country_data[["ds"]]
-        y = country_data["y"]
+        # ---------- BACKTEST ----------
+        st.markdown("## 🧪 Backtesting (2013–2023)")
 
-        # Train: 1965–2012, Test: 2013–2023
-        train_mask = X["ds"] <= 2012
-        test_mask = X["ds"].between(2013, 2023)
+        backtest_start, backtest_end = 2013, 2023
+        # Prophet Backtest
+        st.subheader("📘 Prophet Backtest")
+        bt_prophet_df = prophet_df[prophet_df["ds"].dt.year <= backtest_end]
+        train_df = bt_prophet_df[bt_prophet_df["ds"].dt.year <= backtest_start - 1]
+        test_df = bt_prophet_df[(bt_prophet_df["ds"].dt.year >= backtest_start) & (bt_prophet_df["ds"].dt.year <= backtest_end)]
 
-        X_train = X[train_mask]
-        y_train = y[train_mask]
+        if test_df.empty:
+            st.warning("No test data found for Prophet.")
+        else:
+            bt_model = Prophet(yearly_seasonality=True)
+            bt_model.fit(train_df)
 
-        X_test = X[test_mask]
-        y_test = y[test_mask]
+            future_bt = pd.date_range(start=f"{backtest_start}-01-01", end=f"{backtest_end}-01-01", freq="Y")
+            future_bt_df = pd.DataFrame({"ds": future_bt})
+            bt_forecast = bt_model.predict(future_bt_df)
 
-       if len(X_test) == 0:
-          st.warning("No data available for 2013–2023 to perform backtesting.")
-       else:
-       # Modeli eğit
-       rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
-       rf_model.fit(X_train, y_train)
+            y_true = test_df["y"].values
+            y_pred = bt_forecast["yhat"].values
 
-       # Tahmin
-       y_pred = rf_model.predict(X_test)
+            rmse = mean_squared_error(y_true, y_pred, squared=False)
+            mae = mean_absolute_error(y_true, y_pred)
+            mape = mean_absolute_percentage_error(y_true, y_pred) * 100
 
-       # Metrikler
-       rmse = mean_squared_error(y_test, y_pred, squared=False)
-       mae = mean_absolute_error(y_test, y_pred)
-       mape = mean_absolute_percentage_error(y_test, y_pred) * 100
+            st.markdown(f"""
+            **🔍 Prophet Backtest Metrics:**
+            - RMSE: `{rmse:.2f}`
+            - MAE: `{mae:.2f}`
+            - MAPE: `{mape:.2f}%`
+            """)
 
-       # Göster
-       st.markdown(f"""
-       **🎯 Random Forest Backtest Results (2013–2023):**
-       - RMSE: `{rmse:,.2f}`
-       - MAE: `{mae:,.2f}`
-       - MAPE: `{mape:.2f}%`
-       """)
+            fig3 = go.Figure()
+            fig3.add_trace(go.Scatter(x=test_df["ds"].dt.year, y=y_true, mode="lines+markers", name="Actual"))
+            fig3.add_trace(go.Scatter(x=test_df["ds"].dt.year, y=y_pred, mode="lines+markers", name="Predicted"))
+            st.plotly_chart(fig3, use_container_width=True)
 
-       # Grafik
-       st.markdown("### 📈 Actual vs Predicted (2013–2023)")
-       plot_df = pd.DataFrame({
-        "Year": X_test["ds"].values,
-        "Actual": y_test.values,
-        "Predicted": y_pred
-       })
+        # RF Backtest
+        st.subheader("🌲 Random Forest Backtest")
+        train_rf = rf_df[rf_df["ds"] <= backtest_start - 1]
+        test_rf = rf_df[(rf_df["ds"] >= backtest_start) & (rf_df["ds"] <= backtest_end)]
 
-       fig = go.Figure()
-       fig.add_trace(go.Scatter(x=plot_df["Year"], y=plot_df["Actual"], mode="lines+markers", name="Actual"))
-       fig.add_trace(go.Scatter(x=plot_df["Year"], y=plot_df["Predicted"], mode="lines+markers", name="Predicted"))
-       fig.update_layout(title="Random Forest Backtesting", height=500)
-       st.plotly_chart(fig, use_container_width=True)
+        if test_rf.empty:
+            st.warning("No test data found for Random Forest.")
+        else:
+            X_train_rf = train_rf[["ds"]]
+            y_train_rf = train_rf["y"]
+            X_test_rf = test_rf[["ds"]]
+            y_test_rf = test_rf["y"]
 
-       st.markdown("### 📋 Values")
-       st.dataframe(plot_df)
+            rf_bt_model = RandomForestRegressor(n_estimators=100, random_state=42)
+            rf_bt_model.fit(X_train_rf, y_train_rf)
+            y_pred_rf = rf_bt_model.predict(X_test_rf)
+
+            rmse_rf = mean_squared_error(y_test_rf, y_pred_rf, squared=False)
+            mae_rf = mean_absolute_error(y_test_rf, y_pred_rf)
+            mape_rf = mean_absolute_percentage_error(y_test_rf, y_pred_rf) * 100
+
+            st.markdown(f"""
+            **🔍 Random Forest Backtest Metrics:**
+            - RMSE: `{rmse_rf:.2f}`
+            - MAE: `{mae_rf:.2f}`
+            - MAPE: `{mape_rf:.2f}%`
+            """)
+
+            fig4 = go.Figure()
+            fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_test_rf, mode="lines+markers", name="Actual"))
+            fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_pred_rf, mode="lines+markers", name="Predicted"))
+            st.plotly_chart(fig4, use_container_width=True)
