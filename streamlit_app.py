@@ -351,3 +351,89 @@ elif page == "🗺 Country vs Energy Type":
     with st.expander("🔍 See Full Share Breakdown"):
         for _, row in avg_df.iterrows():
             st.markdown(f"- `{row['Energy Source'].replace('_consumption', '').title()}`: **{row['Percentage']}%**")
+            
+# 🔮 Energy Consumption Forecast
+elif page == "🔮 Energy Consumption Forecast":
+
+    st.title("🔮 Forecasting Energy Consumption with Prophet & Random Forest")
+    st.markdown("Compare time series predictions from Prophet and Random Forest.")
+
+    # 📌 Seçim Alanları
+    energy_cols = [col for col in df.columns if col.endswith("_consumption")]
+    df_forecast = df[["country", "year"] + energy_cols].dropna()
+    countries = sorted(df_forecast["country"].unique())
+
+    selected_country = st.selectbox("🌍 Select a Country:", countries)
+    selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
+    future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
+
+    # 📊 Prophet Model
+    st.subheader("📈 Prophet Forecast")
+    country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].copy()
+    country_data.columns = ["ds", "y"]
+    country_data["ds"] = pd.to_datetime(country_data["ds"], format="%Y")
+
+    prophet_model = Prophet(yearly_seasonality=True)
+    prophet_model.fit(country_data)
+
+    future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y")
+    forecast = prophet_model.predict(future_df)
+    forecast_display = forecast[["ds", "yhat"]].tail(future_years).copy()
+    forecast_display["Year"] = forecast_display["ds"].dt.year
+
+    st.plotly_chart(plot_plotly(prophet_model, forecast))
+
+    # 🌲 Random Forest Model
+    st.subheader("🌲 Random Forest Forecast")
+    df_rf = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
+    X = df_rf[["year"]]
+    y = df_rf[selected_source]
+    rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_model.fit(X, y)
+
+    future_years_rf = list(range(X["year"].max() + 1, X["year"].max() + future_years + 1))
+    future_df_rf = pd.DataFrame({"year": future_years_rf})
+    predictions_rf = rf_model.predict(future_df_rf)
+
+    # 🆚 Tahmin Karşılaştırması
+    st.subheader("🔍 Prophet vs Random Forest Forecast Comparison")
+    comparison_df = pd.DataFrame({
+        "Year": future_years_rf,
+        "Prophet_Prediction": forecast_display["yhat"].values,
+        "RF_Prediction": predictions_rf
+    })
+    st.dataframe(comparison_df)
+
+    # 🎯 Gerçek Veri ile Değerlendirme (2013–2023)
+    st.subheader("🎯 Model Evaluation on Actual Data (2013–2023)")
+    eval_data = country_data.copy()
+    eval_data["year"] = eval_data["ds"].dt.year
+
+    if eval_data["year"].min() < 2013:
+        train_eval = eval_data[eval_data["year"] < 2013]
+        test_eval = eval_data[eval_data["year"].between(2013, 2023)]
+
+        model_eval = Prophet(yearly_seasonality=True)
+        model_eval.fit(train_eval[["ds", "y"]])
+        future_eval = model_eval.make_future_dataframe(periods=len(test_eval), freq="Y")
+        forecast_eval = model_eval.predict(future_eval)
+        y_true = test_eval["y"].values
+        y_pred = forecast_eval.tail(len(test_eval))["yhat"].values
+
+        mae = mean_absolute_error(y_true, y_pred)
+        rmse = mean_squared_error(y_true, y_pred, squared=False)
+        r2 = r2_score(y_true, y_pred)
+
+        st.markdown(f"""
+        - **MAE:** {mae:.2f} kWh
+        - **RMSE:** {rmse:.2f} kWh
+        - **R² Score:** {r2:.2f}
+        """)
+
+        fig_eval = go.Figure()
+        fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=y_true, name="Actual"))
+        fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=y_pred, name="Prophet Prediction"))
+        fig_eval.update_layout(title="Actual vs Prophet Prediction (2013–2023)", xaxis_title="Year", yaxis_title="Consumption")
+        st.plotly_chart(fig_eval)
+    else:
+        st.warning("Not enough historical data before 2013 to perform evaluation.")
