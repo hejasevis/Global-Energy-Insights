@@ -367,7 +367,7 @@ elif page == "🔮 Energy Consumption Forecast":
     selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
     future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
 
-    # 📊 Prophet Model
+    # 📈 Prophet Model
     st.subheader("📈 Prophet Forecast")
     country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
 
@@ -400,7 +400,7 @@ elif page == "🔮 Energy Consumption Forecast":
     future_df_rf = pd.DataFrame({"year": future_years_rf})
     predictions_rf = rf_model.predict(future_df_rf)
 
-    # 🆚 Tahmin Karşılaştırması
+    # 🥾 Tahmin Karşılaştırması
     st.subheader("🔍 Prophet vs Random Forest Forecast Comparison")
     comparison_df = pd.DataFrame({
         "Year": future_years_rf,
@@ -409,7 +409,7 @@ elif page == "🔮 Energy Consumption Forecast":
     })
     st.dataframe(comparison_df)
 
-    # 🎯 Doğruluk Analizi (Bağımsız Değerlendirme)
+    # 🏋️ Doğruluk Analizi (Bağımsız Değerlendirme)
     st.subheader("📊 Backtest: Prophet & Random Forest Model Evaluation")
 
     eval_country = st.selectbox("📍 Select Country for Evaluation", countries, key="eval_country")
@@ -425,57 +425,67 @@ elif page == "🔮 Energy Consumption Forecast":
     else:
         st.markdown("### 🔎 Prophet Evaluation")
         prophet_df = df_eval[df_eval["year"] < eval_range[0]].copy()
-        prophet_df.columns = ["ds", "y"]
-        prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
 
-        future_years_eval = eval_range[1] - eval_range[0] + 1
-        model_eval = Prophet(yearly_seasonality=True)
-        model_eval.fit(prophet_df)
-        future_eval = model_eval.make_future_dataframe(periods=future_years_eval, freq="Y")
-        forecast_eval = model_eval.predict(future_eval)
+        if prophet_df.empty or len(prophet_df) < 3:
+            st.warning("⚠️ Not enough historical data before selected evaluation range for Prophet.")
+        else:
+            prophet_df.columns = ["ds", "y"]
+            prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
 
-        forecast_eval_trim = forecast_eval[['ds', 'yhat']]
-        actual_eval = eval_df.copy()
-        actual_eval["ds"] = pd.to_datetime(actual_eval["year"], format="%Y")
-        merged_eval = pd.merge(actual_eval, forecast_eval_trim, on="ds", how="inner")
+            future_years_eval = eval_range[1] - eval_range[0] + 1
+            model_eval = Prophet(yearly_seasonality=True)
+            model_eval.fit(prophet_df)
+            future_eval = model_eval.make_future_dataframe(periods=future_years_eval, freq="Y")
+            forecast_eval = model_eval.predict(future_eval)
 
-        y_true = merged_eval["value"].values
-        y_pred = merged_eval["yhat"].values
+            forecast_eval_trim = forecast_eval[['ds', 'yhat']]
+            actual_eval = eval_df.copy()
+            actual_eval["ds"] = pd.to_datetime(actual_eval["year"], format="%Y")
+            merged_eval = pd.merge(actual_eval, forecast_eval_trim, on="ds", how="inner")
 
-        mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
-        y_true = y_true[mask]
-        y_pred = y_pred[mask]
+            y_true = merged_eval["value"].values
+            y_pred = merged_eval["yhat"].values
 
-        if len(y_true) > 0:
-            mae = mean_absolute_error(y_true, y_pred)
-            rmse = mean_squared_error(y_true, y_pred, squared=False)
-            r2 = r2_score(y_true, y_pred)
+            mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
+            y_true = y_true[mask]
+            y_pred = y_pred[mask]
 
-            st.markdown(f"""
-            - **Prophet MAE:** {mae:.2f} kWh  
-            - **Prophet RMSE:** {rmse:.2f} kWh  
-            - **Prophet R² Score:** {r2:.2f}
-            """)
+            if len(y_true) > 0:
+                mae = mean_absolute_error(y_true, y_pred)
+                rmse = mean_squared_error(y_true, y_pred, squared=False)
+                r2 = r2_score(y_true, y_pred)
+
+                st.markdown(f"""
+                - **Prophet MAE:** {mae:.2f} kWh  
+                - **Prophet RMSE:** {rmse:.2f} kWh  
+                - **Prophet R² Score:** {r2:.2f}
+                """)
 
         st.markdown("### 🔎 Random Forest Evaluation")
         rf_train = df_eval[df_eval["year"] < eval_range[0]].copy()
         rf_test = df_eval[df_eval["year"].between(eval_range[0], eval_range[1])].copy()
 
-        rf_model_eval = RandomForestRegressor(n_estimators=100, random_state=42)
-        rf_model_eval.fit(rf_train[["year"]], rf_train["value"])
-        rf_preds = rf_model_eval.predict(rf_test[["year"]])
+        if rf_train.empty or len(rf_train) < 3:
+            st.warning("⚠️ Not enough training data before evaluation range for Random Forest.")
+        else:
+            rf_model_eval = RandomForestRegressor(n_estimators=100, random_state=42)
+            rf_model_eval.fit(rf_train[["year"]], rf_train["value"])
+            rf_preds = rf_model_eval.predict(rf_test[["year"]])
 
-        y_true_rf = rf_test["value"].values
-        y_pred_rf = rf_preds
+            y_true_rf = rf_test["value"].values
+            y_pred_rf = rf_preds
 
-        if len(y_true_rf) > 0:
-            mae_rf = mean_absolute_error(y_true_rf, y_pred_rf)
-            rmse_rf = mean_squared_error(y_true_rf, y_pred_rf, squared=False)
-            r2_rf = r2_score(y_true_rf, y_pred_rf)
+            mask_rf = ~np.isnan(y_true_rf) & ~np.isnan(y_pred_rf)
+            y_true_rf = y_true_rf[mask_rf]
+            y_pred_rf = y_pred_rf[mask_rf]
 
-            st.markdown(f"""
-            - **RF MAE:** {mae_rf:.2f} kWh  
-            - **RF RMSE:** {rmse_rf:.2f} kWh  
-            - **RF R² Score:** {r2_rf:.2f}
-            """)
+            if len(y_true_rf) > 0:
+                mae_rf = mean_absolute_error(y_true_rf, y_pred_rf)
+                rmse_rf = mean_squared_error(y_true_rf, y_pred_rf, squared=False)
+                r2_rf = r2_score(y_true_rf, y_pred_rf)
 
+                st.markdown(f"""
+                - **RF MAE:** {mae_rf:.2f} kWh  
+                - **RF RMSE:** {rmse_rf:.2f} kWh  
+                - **RF R² Score:** {r2_rf:.2f}
+                """)
