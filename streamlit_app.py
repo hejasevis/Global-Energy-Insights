@@ -409,47 +409,71 @@ elif page == "🔮 Energy Consumption Forecast":
     })
     st.dataframe(comparison_df)
     
-    # 🔍 Backtesting: Model Doğruluk Karşılaştırması (Geçmiş veriyle test)
-    st.subheader("🧪 Model Accuracy on Historical Data")
+    # 🧪 Model Accuracy on Historical Data
+    st.subheader("🧪 Backtesting: Prophet & Random Forest Accuracy")
 
-    # Yıl sınırı alalım
-    split_year = st.slider("📆 Use data up to year (train)", 2000, df_forecast["year"].max() - 2, 2015)
+    min_year = int(df_forecast["year"].min())
+    max_year = int(df_forecast["year"].max())
+
+    # Dinamik yıl seçimi (eğitim yılı bitiş)
+    split_year = st.slider(
+        "📆 Select last training year:",
+        min_value=min_year + 5,
+        max_value=max_year - future_years,
+        value=2015
+    )
+
     test_years = list(range(split_year + 1, split_year + future_years + 1))
 
     df_test = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
     df_train = df_test[df_test["year"] <= split_year]
     df_test_actual = df_test[df_test["year"].isin(test_years)]
 
-    # Prophet için
-    prophet_data = df_train.rename(columns={"year": "ds", selected_source: "y"})
-    prophet_data["ds"] = pd.to_datetime(prophet_data["ds"], format="%Y")
-    test_model = Prophet(yearly_seasonality=True)
-    test_model.fit(prophet_data)
-    future_test = test_model.make_future_dataframe(periods=len(test_years), freq="Y")
-    forecast_test = test_model.predict(future_test)
-    prophet_preds = forecast_test[["ds", "yhat"]].tail(len(test_years))
-    prophet_preds["year"] = prophet_preds["ds"].dt.year
+    if len(df_test_actual) < future_years:
+        st.warning("⚠️ Not enough actual data points for selected test period.")
+    else:
+        # Prophet
+        prophet_data = df_train.rename(columns={"year": "ds", selected_source: "y"})
+        prophet_data["ds"] = pd.to_datetime(prophet_data["ds"], format="%Y")
+        test_model = Prophet(yearly_seasonality=True)
+        test_model.fit(prophet_data)
+        future_test = test_model.make_future_dataframe(periods=future_years, freq="Y")
+        forecast_test = test_model.predict(future_test)
+        prophet_preds = forecast_test[["ds", "yhat"]].tail(future_years)
+        prophet_preds["year"] = prophet_preds["ds"].dt.year
 
-    # Random Forest için
-    rf = RandomForestRegressor(n_estimators=100, random_state=42)
-    rf.fit(df_train[["year"]], df_train[selected_source])
-    rf_preds = rf.predict(pd.DataFrame({"year": test_years}))
+        # Random Forest
+        rf = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf.fit(df_train[["year"]], df_train[selected_source])
+        rf_preds = rf.predict(pd.DataFrame({"year": test_years}))
 
-    # Gerçek değerlerle karşılaştır
-    df_compare = pd.DataFrame({
-        "Year": test_years,
-        "Actual": df_test_actual[selected_source].values,
-        "Prophet_Prediction": prophet_preds["yhat"].values,
-        "RF_Prediction": rf_preds
-    })
+        # Karşılaştırma
+        df_compare = pd.DataFrame({
+            "Year": test_years,
+            "Actual": df_test_actual[selected_source].values,
+            "Prophet_Prediction": prophet_preds["yhat"].values,
+            "RF_Prediction": rf_preds
+        })
 
-    # RMSE hesapla
-    from sklearn.metrics import mean_squared_error
-    import numpy as np
+        # Hata metrikleri
+        from sklearn.metrics import mean_squared_error
+        import numpy as np
 
-    rmse_prophet = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["Prophet_Prediction"]))
-    rmse_rf = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["RF_Prediction"]))
+        rmse_prophet = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["Prophet_Prediction"]))
+        rmse_rf = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["RF_Prediction"]))
 
-    st.dataframe(df_compare)
-    st.markdown(f"📉 **Prophet RMSE:** {rmse_prophet:.2f}")
-    st.markdown(f"🌲 **Random Forest RMSE:** {rmse_rf:.2f}")
+        st.dataframe(df_compare)
+        st.markdown(f"📉 **Prophet RMSE:** {rmse_prophet:.2f}")
+        st.markdown(f"🌲 **Random Forest RMSE:** {rmse_rf:.2f}")
+
+        # Grafik
+        import plotly.graph_objects as go
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Actual"],
+                                 mode="lines+markers", name="Actual"))
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Prophet_Prediction"],
+                                 mode="lines+markers", name="Prophet"))
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["RF_Prediction"],
+                                 mode="lines+markers", name="Random Forest"))
+        st.plotly_chart(fig)
