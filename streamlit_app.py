@@ -426,34 +426,38 @@ elif page == "🔮 Energy Consumption Forecast":
             future_eval = model_eval.make_future_dataframe(periods=len(test_eval), freq="Y")
             forecast_eval = model_eval.predict(future_eval)
 
-            y_true_full = test_eval["y"].values
-            y_pred_full = forecast_eval["yhat"].values[-len(y_true_full):]
+            # Güvenli eşleme: yılları kullanarak merge
+            forecast_eval_trimmed = forecast_eval[['ds', 'yhat']]
+            test_eval_trimmed = test_eval[['ds', 'y']]
+            merged = pd.merge(test_eval_trimmed, forecast_eval_trimmed, on='ds', how='inner')
 
-            min_len = min(len(y_true_full), len(y_pred_full))
-            y_true = y_true_full[:min_len]
-            y_pred = y_pred_full[:min_len]
-
-            mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
-            y_true = y_true[mask]
-            y_pred = y_pred[mask]
-
-            if len(y_true) == 0 or len(y_pred) == 0:
-                st.warning("⚠️ No valid data left after NaN filtering.")
+            if merged.empty:
+                st.warning("⚠️ No overlapping dates between actual and forecast.")
             else:
-                mae = mean_absolute_error(y_true, y_pred)
-                rmse = mean_squared_error(y_true, y_pred, squared=False)
-                r2 = r2_score(y_true, y_pred)
+                y_true = merged['y'].values
+                y_pred = merged['yhat'].values
 
-                st.markdown(f"""
-                - **MAE:** {mae:.2f} kWh  
-                - **RMSE:** {rmse:.2f} kWh  
-                - **R² Score:** {r2:.2f}
-                """)
+                mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
+                y_true = y_true[mask]
+                y_pred = y_pred[mask]
 
-                fig_eval = go.Figure()
-                fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=test_eval["y"], name="Actual"))
-                fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=y_pred, name="Prophet Prediction"))
-                fig_eval.update_layout(title="Actual vs Prophet Prediction (2013–2023)", xaxis_title="Year", yaxis_title="Consumption")
-                st.plotly_chart(fig_eval)
+                if len(y_true) == 0 or len(y_pred) == 0:
+                    st.warning("⚠️ No valid data left after NaN filtering.")
+                else:
+                    mae = mean_absolute_error(y_true, y_pred)
+                    rmse = mean_squared_error(y_true, y_pred, squared=False)
+                    r2 = r2_score(y_true, y_pred)
+
+                    st.markdown(f"""
+                    - **MAE:** {mae:.2f} kWh  
+                    - **RMSE:** {rmse:.2f} kWh  
+                    - **R² Score:** {r2:.2f}
+                    """)
+
+                    fig_eval = go.Figure()
+                    fig_eval.add_trace(go.Scatter(x=merged["ds"], y=merged["y"], name="Actual"))
+                    fig_eval.add_trace(go.Scatter(x=merged["ds"], y=merged["yhat"], name="Prophet Prediction"))
+                    fig_eval.update_layout(title="Actual vs Prophet Prediction (2013–2023)", xaxis_title="Year", yaxis_title="Consumption")
+                    st.plotly_chart(fig_eval)
     else:
         st.warning("⚠️ Not enough historical data before 2013 to perform evaluation.")
