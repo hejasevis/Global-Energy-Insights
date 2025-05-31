@@ -427,3 +427,64 @@ elif page == "🔮 Energy Consumption Forecast":
 
         st.caption("📘 This summary is generated based on model outputs.")
 
+#Backtesting
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
+import numpy as np
+
+st.markdown("### 🧪 Backtesting (Random Forest) – 2013–2023")
+
+# Yıllık verileri hazırla
+country_data["ds"] = country_data["ds"].dt.year
+X = country_data[["ds"]]
+y = country_data["y"]
+
+# Train: 1965–2012, Test: 2013–2023
+train_mask = X["ds"] <= 2012
+test_mask = X["ds"].between(2013, 2023)
+
+X_train = X[train_mask]
+y_train = y[train_mask]
+
+X_test = X[test_mask]
+y_test = y[test_mask]
+
+if len(X_test) == 0:
+    st.warning("No data available for 2013–2023 to perform backtesting.")
+else:
+    # Modeli eğit
+    rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_model.fit(X_train, y_train)
+
+    # Tahmin
+    y_pred = rf_model.predict(X_test)
+
+    # Metrikler
+    rmse = mean_squared_error(y_test, y_pred, squared=False)
+    mae = mean_absolute_error(y_test, y_pred)
+    mape = mean_absolute_percentage_error(y_test, y_pred) * 100
+
+    # Göster
+    st.markdown(f"""
+    **🎯 Random Forest Backtest Results (2013–2023):**
+    - RMSE: `{rmse:,.2f}`
+    - MAE: `{mae:,.2f}`
+    - MAPE: `{mape:.2f}%`
+    """)
+
+    # Grafik
+    st.markdown("### 📈 Actual vs Predicted (2013–2023)")
+    plot_df = pd.DataFrame({
+        "Year": X_test["ds"].values,
+        "Actual": y_test.values,
+        "Predicted": y_pred
+    })
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=plot_df["Year"], y=plot_df["Actual"], mode="lines+markers", name="Actual"))
+    fig.add_trace(go.Scatter(x=plot_df["Year"], y=plot_df["Predicted"], mode="lines+markers", name="Predicted"))
+    fig.update_layout(title="Random Forest Backtesting", height=500)
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### 📋 Values")
+    st.dataframe(plot_df)
