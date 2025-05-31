@@ -409,55 +409,73 @@ elif page == "🔮 Energy Consumption Forecast":
     })
     st.dataframe(comparison_df)
 
-    # 🎯 Gerçek Veri ile Değerlendirme (2013–2023)
-    st.subheader("🎯 Model Evaluation on Actual Data (2013–2023)")
-    eval_data = country_data.copy()
-    eval_data["year"] = eval_data["ds"].dt.year
+    # 🎯 Doğruluk Analizi (Bağımsız Değerlendirme)
+    st.subheader("📊 Backtest: Prophet & Random Forest Model Evaluation")
 
-    if eval_data["year"].min() < 2013:
-        train_eval = eval_data[eval_data["year"] < 2013]
-        test_eval = eval_data[eval_data["year"].between(2013, 2023)]
+    eval_country = st.selectbox("📍 Select Country for Evaluation", countries, key="eval_country")
+    eval_source = st.selectbox("⚡ Select Energy Type for Evaluation", energy_cols, key="eval_energy")
+    eval_range = st.slider("📆 Select Evaluation Year Range", 1990, 2023, (2013, 2022), key="eval_years")
 
-        if test_eval.empty or train_eval.empty:
-            st.warning("⚠️ Not enough data for evaluation between 2013–2023.")
-        else:
-            model_eval = Prophet(yearly_seasonality=True)
-            model_eval.fit(train_eval[["ds", "y"]])
-            future_eval = model_eval.make_future_dataframe(periods=len(test_eval), freq="Y")
-            forecast_eval = model_eval.predict(future_eval)
+    df_eval = df_forecast[df_forecast["country"] == eval_country][["year", eval_source]].dropna()
+    df_eval.columns = ["year", "value"]
 
-            # Güvenli eşleme: yılları kullanarak merge
-            forecast_eval_trimmed = forecast_eval[['ds', 'yhat']]
-            test_eval_trimmed = test_eval[['ds', 'y']]
-            merged = pd.merge(test_eval_trimmed, forecast_eval_trimmed, on='ds', how='inner')
-
-            if merged.empty:
-                st.warning("⚠️ No overlapping dates between actual and forecast.")
-            else:
-                y_true = merged['y'].values
-                y_pred = merged['yhat'].values
-
-                mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
-                y_true = y_true[mask]
-                y_pred = y_pred[mask]
-
-                if len(y_true) == 0 or len(y_pred) == 0:
-                    st.warning("⚠️ No valid data left after NaN filtering.")
-                else:
-                    mae = mean_absolute_error(y_true, y_pred)
-                    rmse = mean_squared_error(y_true, y_pred, squared=False)
-                    r2 = r2_score(y_true, y_pred)
-
-                    st.markdown(f"""
-                    - **MAE:** {mae:.2f} kWh  
-                    - **RMSE:** {rmse:.2f} kWh  
-                    - **R² Score:** {r2:.2f}
-                    """)
-
-                    fig_eval = go.Figure()
-                    fig_eval.add_trace(go.Scatter(x=merged["ds"], y=merged["y"], name="Actual"))
-                    fig_eval.add_trace(go.Scatter(x=merged["ds"], y=merged["yhat"], name="Prophet Prediction"))
-                    fig_eval.update_layout(title="Actual vs Prophet Prediction (2013–2023)", xaxis_title="Year", yaxis_title="Consumption")
-                    st.plotly_chart(fig_eval)
+    eval_df = df_eval[df_eval["year"].between(eval_range[0], eval_range[1])].copy()
+    if eval_df.empty or len(eval_df) < 5:
+        st.warning("⚠️ Not enough data for selected country, source and year range.")
     else:
-        st.warning("⚠️ Not enough historical data before 2013 to perform evaluation.")
+        st.markdown("### 🔎 Prophet Evaluation")
+        prophet_df = df_eval[df_eval["year"] < eval_range[0]].copy()
+        prophet_df.columns = ["ds", "y"]
+        prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
+
+        future_years_eval = eval_range[1] - eval_range[0] + 1
+        model_eval = Prophet(yearly_seasonality=True)
+        model_eval.fit(prophet_df)
+        future_eval = model_eval.make_future_dataframe(periods=future_years_eval, freq="Y")
+        forecast_eval = model_eval.predict(future_eval)
+
+        forecast_eval_trim = forecast_eval[['ds', 'yhat']]
+        actual_eval = eval_df.copy()
+        actual_eval["ds"] = pd.to_datetime(actual_eval["year"], format="%Y")
+        merged_eval = pd.merge(actual_eval, forecast_eval_trim, on="ds", how="inner")
+
+        y_true = merged_eval["value"].values
+        y_pred = merged_eval["yhat"].values
+
+        mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
+        y_true = y_true[mask]
+        y_pred = y_pred[mask]
+
+        if len(y_true) > 0:
+            mae = mean_absolute_error(y_true, y_pred)
+            rmse = mean_squared_error(y_true, y_pred, squared=False)
+            r2 = r2_score(y_true, y_pred)
+
+            st.markdown(f"""
+            - **Prophet MAE:** {mae:.2f} kWh  
+            - **Prophet RMSE:** {rmse:.2f} kWh  
+            - **Prophet R² Score:** {r2:.2f}
+            """)
+
+        st.markdown("### 🔎 Random Forest Evaluation")
+        rf_train = df_eval[df_eval["year"] < eval_range[0]].copy()
+        rf_test = df_eval[df_eval["year"].between(eval_range[0], eval_range[1])].copy()
+
+        rf_model_eval = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf_model_eval.fit(rf_train[["year"]], rf_train["value"])
+        rf_preds = rf_model_eval.predict(rf_test[["year"]])
+
+        y_true_rf = rf_test["value"].values
+        y_pred_rf = rf_preds
+
+        if len(y_true_rf) > 0:
+            mae_rf = mean_absolute_error(y_true_rf, y_pred_rf)
+            rmse_rf = mean_squared_error(y_true_rf, y_pred_rf, squared=False)
+            r2_rf = r2_score(y_true_rf, y_pred_rf)
+
+            st.markdown(f"""
+            - **RF MAE:** {mae_rf:.2f} kWh  
+            - **RF RMSE:** {rmse_rf:.2f} kWh  
+            - **RF R² Score:** {r2_rf:.2f}
+            """)
+
