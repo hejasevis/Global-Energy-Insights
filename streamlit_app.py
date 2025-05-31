@@ -342,159 +342,104 @@ elif page == "🗺 Country vs Energy Type":
             st.markdown(f"- `{row['Energy Source'].replace('_consumption', '').title()}`: **{row['Percentage']}%**")
             
     # 🔮 Energy Consumption Forecast
-elif page == "🔮 Energy Consumption Forecast":
-    st.title("🔮 Forecasting Energy Consumption")
+    # 📦 Gerekli Kütüphaneler
+import streamlit as st
+import pandas as pd
+from prophet import Prophet
+from prophet.plot import plot_plotly
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import plotly.graph_objects as go
+import numpy as np
 
-    try:
-        from prophet import Prophet
-        from prophet.plot import plot_plotly
-    except ImportError:
-        st.error("❌ Prophet is not installed. Please add `prophet` to your requirements.txt file.")
+# 🔄 Veriyi Yükle
+@st.cache_data
+def load_data():
+    return pd.read_csv("owid-energy-data.csv")
 
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
-    import numpy as np
+df = load_data()
 
-    # Enerji tüketim sütunlarını al
-    energy_cols = [col for col in df.columns if col.endswith("_consumption")]
-    df_forecast = df[["country", "year"] + energy_cols].dropna()
+# 🔮 Tahmin Sayfası
+st.title("🔮 Forecasting Energy Consumption with Prophet & Random Forest")
+st.markdown("Compare time series predictions from Prophet and Random Forest.")
 
-    countries = sorted(df_forecast["country"].unique())
-    selected_country = st.selectbox("🌍 Select a Country:", countries)
-    selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
+# 📌 Seçim Alanları
+energy_cols = [col for col in df.columns if col.endswith("_consumption")]
+df_forecast = df[["country", "year"] + energy_cols].dropna()
+countries = sorted(df_forecast["country"].unique())
 
-    # Seçilen ülke ve kaynak için veri hazırlığı
-    country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].copy()
-    country_data = country_data.dropna()
+selected_country = st.selectbox("🌍 Select a Country:", countries)
+selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
+future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
 
-    if country_data.empty:
-        st.warning("No data available for this selection.")
-    else:
-        # DEBUG: Veri aralığını göster
-        st.write("📆 Available data years:", country_data["year"].min(), "-", country_data["year"].max())
+# 📊 Prophet Model
+st.subheader("📈 Prophet Forecast")
+country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].copy()
+country_data.columns = ["ds", "y"]
+country_data["ds"] = pd.to_datetime(country_data["ds"], format="%Y")
 
-        ### Prophet için veri hazırlığı
-        prophet_df = country_data.copy()
-        prophet_df.columns = ["ds", "y"]
-        prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
+prophet_model = Prophet(yearly_seasonality=True)
+prophet_model.fit(country_data)
 
-        ### Random Forest için veri hazırlığı
-        rf_df = country_data.copy()
-        rf_df.columns = ["ds", "y"]
-        rf_df["ds"] = rf_df["ds"].astype(int)
+future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y")
+forecast = prophet_model.predict(future_df)
+forecast_display = forecast[["ds", "yhat"]].tail(future_years).copy()
+forecast_display["Year"] = forecast_display["ds"].dt.year
 
-        future_years = st.slider("🗓️ Years to Predict (Future):", 1, 20, 5)
-        last_year = rf_df["ds"].max()
-        future_years_list = list(range(last_year + 1, last_year + future_years + 1))
+st.plotly_chart(plot_plotly(prophet_model, forecast))
 
-        # ---------- GENEL TAHMİN ----------
-        st.markdown("## 🔮 Future Forecasting")
+# 🌲 Random Forest Model
+st.subheader("🌲 Random Forest Forecast")
+df_rf = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
+X = df_rf[["year"]]
+y = df_rf[selected_source]
+rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+rf_model.fit(X, y)
 
-        col1, col2 = st.columns(2)
+future_years_rf = list(range(X["year"].max() + 1, X["year"].max() + future_years + 1))
+future_df_rf = pd.DataFrame({"year": future_years_rf})
+predictions_rf = rf_model.predict(future_df_rf)
 
-        with col1:
-            st.subheader("📘 Prophet Forecast")
-            model = Prophet(yearly_seasonality=True)
-            model.fit(prophet_df)
+# 🆚 Tahmin Karşılaştırması
+st.subheader("🔍 Prophet vs Random Forest Forecast Comparison")
+comparison_df = pd.DataFrame({
+    "Year": future_years_rf,
+    "Prophet_Prediction": forecast_display["yhat"].values,
+    "RF_Prediction": predictions_rf
+})
+st.dataframe(comparison_df)
 
-            future = model.make_future_dataframe(periods=future_years, freq="Y")
-            forecast = model.predict(future)
+# 🎯 Gerçek Veri ile Değerlendirme (2013–2023)
+st.subheader("🎯 Model Evaluation on Actual Data (2013–2023)")
+eval_data = country_data.copy()
+eval_data["year"] = eval_data["ds"].dt.year
 
-            fig1 = plot_plotly(model, forecast)
-            st.plotly_chart(fig1, use_container_width=True)
+if eval_data["year"].min() < 2013:
+    train_eval = eval_data[eval_data["year"] < 2013]
+    test_eval = eval_data[eval_data["year"].between(2013, 2023)]
 
-            future_forecast = forecast[["ds", "yhat"]].tail(future_years)
-            future_forecast["ds"] = future_forecast["ds"].dt.year
-            st.dataframe(future_forecast.rename(columns={"ds": "Year", "yhat": "Prediction"}))
+    model_eval = Prophet(yearly_seasonality=True)
+    model_eval.fit(train_eval[["ds", "y"]])
+    future_eval = model_eval.make_future_dataframe(periods=len(test_eval), freq="Y")
+    forecast_eval = model_eval.predict(future_eval)
+    y_true = test_eval["y"].values
+    y_pred = forecast_eval.tail(len(test_eval))["yhat"].values
 
-        with col2:
-            st.subheader("🌲 Random Forest Forecast")
-            X_rf = rf_df[["ds"]]
-            y_rf = rf_df["y"]
-            rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
-            rf_model.fit(X_rf, y_rf)
-
-            future_X = pd.DataFrame(future_years_list, columns=["ds"])
-            rf_preds = rf_model.predict(future_X)
-
-            rf_forecast = pd.DataFrame({"Year": future_years_list, "Prediction": rf_preds})
-            fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(x=rf_forecast["Year"], y=rf_forecast["Prediction"], mode="lines+markers", name="RF Forecast"))
-            st.plotly_chart(fig2, use_container_width=True)
-            st.dataframe(rf_forecast)
-
-    # ---------------- BACKTEST KISMI ----------------
-st.markdown("## 🧪 Backtesting (2013–2023)")
-
-backtest_start, backtest_end = 2013, 2023
-
-# Prophet Backtest
-st.subheader("📘 Prophet Backtest")
-
-bt_prophet_df = prophet_df[prophet_df["ds"].dt.year <= backtest_end]
-train_df = bt_prophet_df[bt_prophet_df["ds"].dt.year <= backtest_start - 1]
-test_df = bt_prophet_df[(bt_prophet_df["ds"].dt.year >= backtest_start) & (bt_prophet_df["ds"].dt.year <= backtest_end)]
-
-if test_df.empty or train_df.empty:
-    st.warning("Insufficient data for Prophet backtest.")
-else:
-    bt_model = Prophet(yearly_seasonality=True)
-    bt_model.fit(train_df)
-
-    future_bt_df = bt_model.make_future_dataframe(periods=(backtest_end - backtest_start + 1), freq="Y")
-    future_bt_df = future_bt_df[future_bt_df["ds"].dt.year >= backtest_start]
-    bt_forecast = bt_model.predict(future_bt_df)
-
-    y_true = test_df["y"].values
-    y_pred = bt_forecast["yhat"].values[:len(y_true)]
-
-    rmse = mean_squared_error(y_true, y_pred, squared=False)
     mae = mean_absolute_error(y_true, y_pred)
-    mape = mean_absolute_percentage_error(y_true, y_pred) * 100
+    rmse = mean_squared_error(y_true, y_pred, squared=False)
+    r2 = r2_score(y_true, y_pred)
 
     st.markdown(f"""
-    **🔍 Prophet Backtest Metrics:**
-    - RMSE: `{rmse:.2f}`
-    - MAE: `{mae:.2f}`
-    - MAPE: `{mape:.2f}%`
+    - **MAE:** {mae:.2f} kWh
+    - **RMSE:** {rmse:.2f} kWh
+    - **R² Score:** {r2:.2f}
     """)
 
-    fig3 = go.Figure()
-    fig3.add_trace(go.Scatter(x=test_df["ds"].dt.year, y=y_true, mode="lines+markers", name="Actual"))
-    fig3.add_trace(go.Scatter(x=test_df["ds"].dt.year, y=y_pred, mode="lines+markers", name="Predicted"))
-    st.plotly_chart(fig3, use_container_width=True)
-
-# Random Forest Backtest
-st.subheader("🌲 Random Forest Backtest")
-
-train_rf = rf_df[rf_df["ds"] <= backtest_start - 1]
-test_rf = rf_df[(rf_df["ds"] >= backtest_start) & (rf_df["ds"] <= backtest_end)]
-
-if test_rf.empty or train_rf.empty:
-    st.warning("Insufficient data for Random Forest backtest.")
+    fig_eval = go.Figure()
+    fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=y_true, name="Actual"))
+    fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=y_pred, name="Prophet Prediction"))
+    fig_eval.update_layout(title="Actual vs Prophet Prediction (2013–2023)", xaxis_title="Year", yaxis_title="Consumption")
+    st.plotly_chart(fig_eval)
 else:
-    X_train_rf = train_rf[["ds"]]
-    y_train_rf = train_rf["y"]
-    X_test_rf = test_rf[["ds"]]
-    y_test_rf = test_rf["y"]
-
-    rf_bt_model = RandomForestRegressor(n_estimators=100, random_state=42)
-    rf_bt_model.fit(X_train_rf, y_train_rf)
-    y_pred_rf = rf_bt_model.predict(X_test_rf)
-
-    rmse_rf = mean_squared_error(y_test_rf, y_pred_rf, squared=False)
-    mae_rf = mean_absolute_error(y_test_rf, y_pred_rf)
-    mape_rf = mean_absolute_percentage_error(y_test_rf, y_pred_rf) * 100
-
-    st.markdown(f"""
-    **🔍 Random Forest Backtest Metrics:**
-    - RMSE: `{rmse_rf:.2f}`
-    - MAE: `{mae_rf:.2f}`
-    - MAPE: `{mape_rf:.2f}%`
-    """)
-
-    fig4 = go.Figure()
-    fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_test_rf, mode="lines+markers", name="Actual"))
-    fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_pred_rf, mode="lines+markers", name="Predicted"))
-    st.plotly_chart(fig4, use_container_width=True)
+    st.warning("Not enough historical data before 2013 to perform evaluation.")
 
