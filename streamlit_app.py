@@ -1,18 +1,29 @@
+# 🚀 Temel Kütüphaneler
 import streamlit as st
 import pandas as pd
+import numpy as np
+
+# 📈 Grafik ve Görselleştirme
 import plotly.express as px
+import plotly.graph_objects as go
+import plotly.figure_factory as ff
 import matplotlib.pyplot as plt
 import seaborn as sns
-import plotly.figure_factory as ff
-import plotly.graph_objects as go
+
+# 📊 Veri İşleme & Makine Öğrenmesi
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# 🔍 Apriori Analizi
 from mlxtend.frequent_patterns import apriori, association_rules
-from PIL import Image
-import streamlit as st
+
+# 🧠 Zaman Serisi Tahmin
 from prophet import Prophet
 from prophet.plot import plot_plotly
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import numpy as np
+
+# 🖼 Görsel İşleme (varsa kullanılabilir)
+from PIL import Image
 
 
 
@@ -341,17 +352,7 @@ elif page == "🗺 Country vs Energy Type":
         for _, row in avg_df.iterrows():
             st.markdown(f"- `{row['Energy Source'].replace('_consumption', '').title()}`: **{row['Percentage']}%**")
             
-    # 🔮 Energy Consumption Forecast
-    # 📦 Gerekli Kütüphaneler
-import streamlit as st
-import pandas as pd
-from prophet import Prophet
-from prophet.plot import plot_plotly
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import plotly.graph_objects as go
-import numpy as np
-
+# 🔮 Energy Consumption Forecast
 # 🔄 Veriyi Yükle
 @st.cache_data
 def load_data():
