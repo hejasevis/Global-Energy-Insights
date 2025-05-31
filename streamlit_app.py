@@ -51,7 +51,7 @@ df = load_data()
  # 🏠 Home Page
 if page == "🏠 Home":
     
-    st.image("images/back.png", use_container_width=True)
+    st.image("images/background.png", use_container_width=True)
 
     st.title("🔌 Global Energy Dashboard")
     st.markdown("This interactive dashboard visualizes global energy consumption data from [Our World in Data](https://ourworldindata.org/energy).")
