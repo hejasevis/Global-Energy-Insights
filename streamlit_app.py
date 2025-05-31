@@ -353,7 +353,11 @@ elif page == "🗺 Country vs Energy Type":
             st.markdown(f"- `{row['Energy Source'].replace('_consumption', '').title()}`: **{row['Percentage']}%**")
             
 # 🔮 Energy Consumption Forecast
-# 🔄 Veriyi Yükle
+elif page == "🔮 Energy Consumption Forecast":
+
+    st.title("🔮 Forecasting Energy Consumption with Prophet & Random Forest")
+    st.markdown("Compare time series predictions from Prophet and Random Forest.")
+
 @st.cache_data
 def load_data():
     return pd.read_csv("owid-energy-data.csv")
