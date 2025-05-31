@@ -408,7 +408,8 @@ elif page == "🔮 Energy Consumption Forecast":
         "RF_Prediction": predictions_rf
     })
     st.dataframe(comparison_df)
-        # 🔍 Backtesting: Model Doğruluk Karşılaştırması (Geçmiş veriyle test)
+    
+    # 🔍 Backtesting: Model Doğruluk Karşılaştırması (Geçmiş veriyle test)
     st.subheader("🧪 Model Accuracy on Historical Data")
 
     # Yıl sınırı alalım
