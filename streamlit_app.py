@@ -405,42 +405,51 @@ elif page == "🔮 Energy Consumption Forecast":
     st.dataframe(comparison_df)
 
     # 🎯 Gerçek Veri ile Değerlendirme (2013–2023)
-    st.subheader("🎯 Model Evaluation on Actual Data (2013–2023)")
-    eval_data = country_data.copy()
-    eval_data["year"] = eval_data["ds"].dt.year
+st.subheader("🎯 Model Evaluation on Actual Data (2013–2023)")
+eval_data = country_data.copy()
+eval_data["year"] = eval_data["ds"].dt.year
 
-    if eval_data["year"].min() < 2013:
-        train_eval = eval_data[eval_data["year"] < 2013]
-        test_eval = eval_data[eval_data["year"].between(2013, 2023)]
+if eval_data["year"].min() < 2013:
+    train_eval = eval_data[eval_data["year"] < 2013]
+    test_eval = eval_data[eval_data["year"].between(2013, 2023)]
 
-    if test_eval.empty:
-        st.warning("⚠️ No actual data available for 2013–2023 in this selection.")
+    if test_eval.empty or train_eval.empty:
+        st.warning("⚠️ Not enough data for evaluation between 2013–2023.")
     else:
         model_eval = Prophet(yearly_seasonality=True)
         model_eval.fit(train_eval[["ds", "y"]])
         future_eval = model_eval.make_future_dataframe(periods=len(test_eval), freq="Y")
         forecast_eval = model_eval.predict(future_eval)
 
+        # Tahmin ve gerçek değerleri eşleştir
         y_true = test_eval["y"].values
         y_pred = forecast_eval.tail(len(test_eval))["yhat"].values
 
-        mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
-        y_true = y_true[mask]
-        y_pred = y_pred[mask]
+        # 🧼 NaN temizliği + boyut kontrolü
+        if len(y_true) != len(y_pred):
+            st.warning("⚠️ Mismatch between prediction and actual data lengths.")
+        else:
+            mask = ~np.isnan(y_true) & ~np.isnan(y_pred)
+            y_true = y_true[mask]
+            y_pred = y_pred[mask]
 
-        mae = mean_absolute_error(y_true, y_pred)
-        rmse = mean_squared_error(y_true, y_pred, squared=False)
-        r2 = r2_score(y_true, y_pred)
+            if len(y_true) == 0 or len(y_pred) == 0:
+                st.warning("⚠️ No valid data left after NaN filtering.")
+            else:
+                mae = mean_absolute_error(y_true, y_pred)
+                rmse = mean_squared_error(y_true, y_pred, squared=False)
+                r2 = r2_score(y_true, y_pred)
 
-        st.markdown(f"""
-        - **MAE:** {mae:.2f} kWh  
-        - **RMSE:** {rmse:.2f} kWh  
-        - **R² Score:** {r2:.2f}
-        """)
+                st.markdown(f"""
+                - **MAE:** {mae:.2f} kWh  
+                - **RMSE:** {rmse:.2f} kWh  
+                - **R² Score:** {r2:.2f}
+                """)
 
-        fig_eval = go.Figure()
-        fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=y_true, name="Actual"))
-        fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=y_pred, name="Prophet Prediction"))
-        fig_eval.update_layout(title="Actual vs Prophet Prediction (2013–2023)", xaxis_title="Year", yaxis_title="Consumption")
-        st.plotly_chart(fig_eval)
-
+                fig_eval = go.Figure()
+                fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=test_eval["y"], name="Actual"))
+                fig_eval.add_trace(go.Scatter(x=test_eval["ds"], y=y_pred, name="Prophet Prediction"))
+                fig_eval.update_layout(title="Actual vs Prophet Prediction (2013–2023)", xaxis_title="Year", yaxis_title="Consumption")
+                st.plotly_chart(fig_eval)
+else:
+    st.warning("⚠️ Not enough historical data before 2013 to perform evaluation.")
