@@ -370,6 +370,9 @@ elif page == "🔮 Energy Consumption Forecast":
     if country_data.empty:
         st.warning("No data available for this selection.")
     else:
+        # DEBUG: Veri aralığını göster
+        st.write("📆 Available data years:", country_data["year"].min(), "-", country_data["year"].max())
+
         ### Prophet için veri hazırlığı
         prophet_df = country_data.copy()
         prophet_df.columns = ["ds", "y"]
@@ -420,28 +423,30 @@ elif page == "🔮 Energy Consumption Forecast":
             st.plotly_chart(fig2, use_container_width=True)
             st.dataframe(rf_forecast)
 
-        # ---------- BACKTEST ----------
-        st.markdown("## 🧪 Backtesting (2013–2023)")
+    # ---------------- BACKTEST KISMI ----------------
+    st.markdown("## 🧪 Backtesting (2013–2023)")
 
-        backtest_start, backtest_end = 2013, 2023
-        # Prophet Backtest
-        st.subheader("📘 Prophet Backtest")
+    backtest_start, backtest_end = 2013, 2023
+
+    # Prophet Backtest
+    st.subheader("📘 Prophet Backtest")
+    if not country_data.empty:
         bt_prophet_df = prophet_df[prophet_df["ds"].dt.year <= backtest_end]
         train_df = bt_prophet_df[bt_prophet_df["ds"].dt.year <= backtest_start - 1]
         test_df = bt_prophet_df[(bt_prophet_df["ds"].dt.year >= backtest_start) & (bt_prophet_df["ds"].dt.year <= backtest_end)]
 
-        if test_df.empty:
-            st.warning("No test data found for Prophet.")
+        if test_df.empty or train_df.empty:
+            st.warning("Insufficient data for Prophet backtest.")
         else:
             bt_model = Prophet(yearly_seasonality=True)
             bt_model.fit(train_df)
 
-            future_bt = pd.date_range(start=f"{backtest_start}-01-01", end=f"{backtest_end}-01-01", freq="Y")
-            future_bt_df = pd.DataFrame({"ds": future_bt})
+            future_bt_df = bt_model.make_future_dataframe(periods=(backtest_end - backtest_start + 1), freq="Y")
+            future_bt_df = future_bt_df[future_bt_df["ds"].dt.year >= backtest_start]
             bt_forecast = bt_model.predict(future_bt_df)
 
             y_true = test_df["y"].values
-            y_pred = bt_forecast["yhat"].values
+            y_pred = bt_forecast["yhat"].values[:len(y_true)]
 
             rmse = mean_squared_error(y_true, y_pred, squared=False)
             mae = mean_absolute_error(y_true, y_pred)
@@ -459,13 +464,14 @@ elif page == "🔮 Energy Consumption Forecast":
             fig3.add_trace(go.Scatter(x=test_df["ds"].dt.year, y=y_pred, mode="lines+markers", name="Predicted"))
             st.plotly_chart(fig3, use_container_width=True)
 
-        # RF Backtest
-        st.subheader("🌲 Random Forest Backtest")
+    # Random Forest Backtest
+    st.subheader("🌲 Random Forest Backtest")
+    if not country_data.empty:
         train_rf = rf_df[rf_df["ds"] <= backtest_start - 1]
         test_rf = rf_df[(rf_df["ds"] >= backtest_start) & (rf_df["ds"] <= backtest_end)]
 
-        if test_rf.empty:
-            st.warning("No test data found for Random Forest.")
+        if test_rf.empty or train_rf.empty:
+            st.warning("Insufficient data for Random Forest backtest.")
         else:
             X_train_rf = train_rf[["ds"]]
             y_train_rf = train_rf["y"]
@@ -491,3 +497,4 @@ elif page == "🔮 Energy Consumption Forecast":
             fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_test_rf, mode="lines+markers", name="Actual"))
             fig4.add_trace(go.Scatter(x=X_test_rf["ds"], y=y_pred_rf, mode="lines+markers", name="Predicted"))
             st.plotly_chart(fig4, use_container_width=True)
+
