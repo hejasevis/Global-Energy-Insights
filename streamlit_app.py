@@ -41,7 +41,7 @@ with st.sidebar:
             "Energy Relationships",
             "Growth Rate Trends",
             "Country Energy Mix",
-            "Forecasting"
+            "Future Energy Forecast"
         ],
         icons=["house", "globe", "bar-chart-line", "graph-up-arrow", "pie-chart", "stars"],
         default_index=0,
@@ -70,8 +70,8 @@ def load_data():
 
 df = load_data()
 
-# 🏠 Home Page
-if page == "🏠 Home":
+# 🏠 Home
+if page == "Home":
 
     st.image("images/background.png", use_container_width=True)
 
@@ -109,8 +109,8 @@ if page == "🏠 Home":
     st.info("📌 *This dashboard is developed using Python, Streamlit, and machine learning tools as part of a final year project.*")
 
 
-# 🗺️ Page 1 - Global Map
-elif page == "🗺️ Global Map":
+# 🗺️ Page 1 -  Global Energy Map
+elif page == "Global Energy Map":
 
     # 📌 Page Title and Introductory Info
     st.title("🗺️ Global Map of Energy Use per Capita")
@@ -197,8 +197,8 @@ elif page == "🗺️ Global Map":
     """)
 
   
-# 🌐 Page 2 - Country-Level Deep Analysis
-elif page == "🌐 Deep Analysis":
+# 🌐 Page 2 - Energy Relationships
+elif page == "Energy Relationships":
 
     # 📌 Page Title and Overview
     st.title("🌐 Country-Level Energy Pattern Discovery")
@@ -337,8 +337,8 @@ elif page == "🌐 Deep Analysis":
             st.warning("No rules to visualize. Try adjusting thresholds or year range.")
 
           
-# 📈 Page 3 - Energy Growth Rates
-elif page == "📈 Growth Rates":
+# 📈 Page 3 - Growth Rate Trends
+elif page == "Growth Rate Trends":
 
     # 📌 Page Title
     st.title("📈 Annual Growth Trends in Energy Consumption")
@@ -407,8 +407,8 @@ elif page == "📈 Growth Rates":
     st.plotly_chart(fig, use_container_width=True)
 
     
-# 🗺 Page 4 - Country vs Energy Type
-elif page == "🗺 Country vs Energy Type":
+# 🗺 Page 4 - Country Energy Mix
+elif page == "Country Energy Mix":
 
     # 📌 Title and Info Box
     st.title("🗺 Energy Mix Analysis by Country and Year")
@@ -504,8 +504,8 @@ elif page == "🗺 Country vs Energy Type":
         st.warning("Renewable/non-renewable data not sufficient to calculate ratio.")
 
 
-# 🔮 Forecast Page – Prophet & Random Forest Forecasting
-elif page == "🔮 Energy Consumption Forecast":
+# 🔮 Future Energy Forecast
+elif page == "Future Energy Forecast":
 
     # 📌 Title & Info Box
     st.title("🔮 Energy Consumption Forecasting with ML Models")
