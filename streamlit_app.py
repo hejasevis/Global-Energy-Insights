@@ -88,50 +88,70 @@ if page == "🏠 Home":
 
 
 # 🌍 Page 1 - Global Map
+
 elif page == "🌍 Global Map":
+
+    # 📌 Page Title and Introductory Info
     st.title("🌍 Global Energy Consumption per Capita")
     st.markdown("Measured in kilowatt-hours per person. Source: [Our World in Data](https://ourworldindata.org/energy)")
 
+    # 📌 Year selection section for filtering the map data
+    # This allows users to dynamically explore how energy consumption per capita changes over time
     st.markdown("### 📅 Year Selection")
     df_map = df[["iso_code", "country", "year", "energy_per_capita"]].dropna()
+
+    # Slider to pick a specific year from the available dataset
     year = st.slider("Select Year", int(df_map["year"].min()), int(df_map["year"].max()), 2023)
+
+    # Filter the data based on selected year
     df_year = df_map[df_map["year"] == year]
 
+    # 📌 Country selection for displaying specific data
     country_list = sorted(df_year["country"].unique())
     selected_country = st.selectbox("🌎 Select a Country to View Details", country_list)
+
+    # Get data for the selected country
     selected_row = df_year[df_year["country"] == selected_country].iloc[0]
 
+    # 📌 Display detailed metrics for the selected country and year
     st.markdown(f"#### 📄 Details for {selected_country} ({year})")
     st.markdown(f"- 📊 Energy per Capita: **{selected_row['energy_per_capita']:.2f} kWh/person**")
     st.markdown(f"- 📆 Year: **{selected_row['year']}**")
     st.markdown("---")
     st.markdown(f"Currently showing energy use for the year **{year}**")
 
+    # 📌 Choropleth Map
+    # This visualizes per capita energy consumption using a colored world map
+    # Darker colors represent higher energy use per person
     fig = px.choropleth(
         df_year,
         locations="iso_code",
         color="energy_per_capita",
         hover_name="country",
-        color_continuous_scale=["#76c893", "#34a0a4","#1a759f","#1e6091", "#184e77"],
+        color_continuous_scale=["#76c893", "#34a0a4", "#1a759f", "#1e6091", "#184e77"],
         labels={"energy_per_capita": "kWh / person"},
         title=f"Per Capita Energy Consumption ({year})"
     )
 
+    # Map style configuration - hides borders and sets projection
     fig.update_geos(
         showframe=False,
         showcoastlines=False,
         projection_type="natural earth"
     )
 
+    # 📌 Layout and Theme
+    # Custom styling for dark mode compatibility
     fig.update_layout(
         margin=dict(l=0, r=0, t=60, b=0),
-        height= 600,
+        height=600,
         paper_bgcolor="#111111",
         plot_bgcolor="#1e1e1e",
         font=dict(color="white", size=12),
         geo_bgcolor="#1e1e1e"
     )
 
+    # 📌 Render the map
     st.plotly_chart(fig, use_container_width=True)
     
     # 🌐 Page 2 - Country-Level Deep Analysis
