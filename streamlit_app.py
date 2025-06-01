@@ -197,7 +197,7 @@ elif page == "Global Energy Map":
     """)
 
   
-# 🌐 Page 2 - Energy Relationships
+# 🌐 Page 2 - Energy Relationships 
 elif page == "Energy Relationships":
 
     # 📌 Page Title and Overview
@@ -255,8 +255,8 @@ elif page == "Energy Relationships":
         st.markdown(f"📅 Showing rules for **{year_range[0]}–{year_range[1]}**")
         st.dataframe(rules_sorted)
 
-        # ⚡ 2. Correlation Heatmap
-        st.subheader("⚡ Correlation Heatmap")
+        # ⚡️ 2. Correlation Heatmap
+        st.subheader("⚡️ Correlation Heatmap")
         st.markdown("This heatmap shows normalized Pearson correlations between different energy consumption types.")
 
         import plotly.figure_factory as ff
@@ -335,6 +335,21 @@ elif page == "Energy Relationships":
             st.plotly_chart(fig2, use_container_width=True)
         else:
             st.warning("No rules to visualize. Try adjusting thresholds or year range.")
+
+        # 🔍 4. Insights
+        st.markdown("### 🔍 Insights")
+        if not rules_sorted.empty:
+            avg_support = rules_sorted['support'].mean()
+            avg_lift = rules_sorted['lift'].mean()
+            avg_confidence = rules_sorted['confidence'].mean()
+
+            st.markdown(f"""
+            - **Average Support:** {avg_support:.2f}  
+            - **Average Lift:** {avg_lift:.2f}  
+            - **Average Confidence:** {avg_confidence:.2f}
+            """)
+        else:
+            st.info("No insights available due to lack of valid rules.")
 
           
 # 📈 Page 3 - Growth Rate Trends
@@ -530,13 +545,13 @@ elif page == "Country Energy Mix":
 elif page == "Future Energy Forecast":
 
     # 📌 Title & Info Box
-    st.title("🔮 Energy Consumption Forecasting with ML Models")
+    st.title("🔮 Future Energy Forecast with Machine Learning")
     st.info("""
     This module compares two machine learning models – **Prophet** and **Random Forest** – to forecast future energy consumption based on historical data.  
-    You can select a country and energy type, adjust prediction length, and validate model accuracy using backtesting.
+    Select a country and energy type, adjust prediction length, and validate model accuracy using backtesting and insights.
     """)
 
-    # 📌 Seçim ve veri hazırlığı
+    # 📌 Selection and data prep
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
     df_forecast = df[["country", "year"] + energy_cols].dropna()
     countries = sorted(df_forecast["country"].unique())
@@ -577,7 +592,6 @@ elif page == "Future Energy Forecast":
     future_df_rf = pd.DataFrame({"year": future_years_rf})
     predictions_rf = rf_model.predict(future_df_rf)
 
-    # 🔍 RF Grafik
     rf_plot = go.Figure()
     rf_plot.add_trace(go.Scatter(
         x=future_years_rf,
@@ -594,7 +608,7 @@ elif page == "Future Energy Forecast":
     )
     st.plotly_chart(rf_plot, use_container_width=True)
 
-    # 🔍 Prophet vs RF Comparison
+    # Forecast Comparison
     st.subheader("🔍 Prophet vs Random Forest Forecast Comparison")
     forecast_display = forecast[["ds", "yhat"]].tail(future_years).copy()
     forecast_display["Year"] = forecast_display["ds"].dt.year
@@ -606,7 +620,7 @@ elif page == "Future Energy Forecast":
     })
     st.dataframe(comparison_df)
 
-    # Backtesting Accuracy
+    # Backtesting
     st.subheader("🧪 Backtesting: Prophet & Random Forest Accuracy")
 
     min_year = int(df_forecast["year"].min())
@@ -627,7 +641,6 @@ elif page == "Future Energy Forecast":
     if len(df_test_actual) < future_years:
         st.warning("⚠️ Not enough actual data points for selected test period.")
     else:
-        # Prophet Backtest
         prophet_data = df_train.rename(columns={"year": "ds", selected_source: "y"})
         prophet_data["ds"] = pd.to_datetime(prophet_data["ds"], format="%Y")
         test_model = Prophet(yearly_seasonality=True)
@@ -637,12 +650,10 @@ elif page == "Future Energy Forecast":
         prophet_preds = forecast_test[["ds", "yhat"]].tail(future_years)
         prophet_preds["year"] = prophet_preds["ds"].dt.year
 
-        # RF Backtest
         rf = RandomForestRegressor(n_estimators=100, random_state=42)
         rf.fit(df_train[["year"]], df_train[selected_source])
         rf_preds = rf.predict(pd.DataFrame({"year": test_years}))
 
-        # Karşılaştırma
         df_compare = pd.DataFrame({
             "Year": test_years,
             "Actual": df_test_actual[selected_source].values,
@@ -650,7 +661,6 @@ elif page == "Future Energy Forecast":
             "RF_Prediction": rf_preds
         })
 
-        # Hata metrikleri
         rmse_prophet = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["Prophet_Prediction"]))
         rmse_rf = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["RF_Prediction"]))
 
@@ -658,7 +668,6 @@ elif page == "Future Energy Forecast":
         st.markdown(f"📉 **Prophet RMSE:** `{rmse_prophet:.2f}`")
         st.markdown(f"🌲 **Random Forest RMSE:** `{rmse_rf:.2f}`")
 
-        # Grafik: Tahminler vs Gerçek Değerler
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Actual"],
                                  mode="lines+markers", name="Actual"))
@@ -673,3 +682,8 @@ elif page == "Future Energy Forecast":
             template="plotly_white"
         )
         st.plotly_chart(fig)
+
+        # 💡 Insight Section
+        st.subheader("💡 Forecasting Insights")
+        stronger = "Prophet" if rmse_prophet < rmse_rf else "Random Forest"
+        st.success(f"🔍 Based on RMSE, the **{stronger}** model performed better in this backtesting scenario.")
