@@ -89,10 +89,10 @@ if page == "🏠 Home":
 
 # 🌍 Page 1 - Global Map
 
-elif page == "🌍 Global Map":
+elif page == "🗺️ Global Map":
 
     # 📌 Page Title and Introductory Info
-    st.title("🌍 Global Energy Consumption per Capita")
+    st.title("🗺️ Global Map of Energy Use per Capita")
 
     # ℹ️ Helper info box to guide users
     st.info("""
