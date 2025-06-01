@@ -406,6 +406,28 @@ elif page == "Growth Rate Trends":
 
     st.plotly_chart(fig, use_container_width=True)
 
+    # 📊 Insight Section
+    st.markdown("### 💡 Insights")
+
+    # Calculate average growth rate for each selected source
+    insight_df = filtered_df[[col + "_change_%" for col in selected_sources]].mean().sort_values(ascending=False)
+    insight_df = insight_df.reset_index()
+    insight_df.columns = ["Energy Source", "Average Annual Growth (%)"]
+    insight_df["Energy Source"] = insight_df["Energy Source"].str.replace("_consumption_change_%", "").str.title()
+
+    # Top and bottom performing sources
+    top = insight_df.iloc[0]
+    bottom = insight_df.iloc[-1]
+
+    st.markdown(f"""
+    - **Highest average growth:** `{top['Energy Source']}` with **{top['Average Annual Growth (%)']:.2f}%**
+    - **Lowest (or negative) average growth:** `{bottom['Energy Source']}` with **{bottom['Average Annual Growth (%)']:.2f}%**
+    """)
+
+    # Optional: Show full table in expander
+    with st.expander("🔍 See All Source Growth Averages"):
+    st.dataframe(insight_df)
+
     
 # 🗺 Page 4 - Country Energy Mix
 elif page == "Country Energy Mix":
