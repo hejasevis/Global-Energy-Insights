@@ -86,7 +86,9 @@ if page == "🏠 Home":
     st.markdown("---")
     st.info("📌 *This dashboard is developed using Python, Streamlit, and machine learning tools as part of a final year project.*")
 
+
 # 🌍 Page 1 - Global Map
+
 elif page == "🌍 Global Map":
 
     # 📌 Page Title and Introductory Info
@@ -104,7 +106,7 @@ elif page == "🌍 Global Map":
     st.markdown("### 📅 Year Selection")
 
     # Select relevant columns and remove rows with missing values
-    df_map = df[["iso_code", "country", "year", "energy_per_capita"]].dropna()
+    df_map = df[["iso_code", "country", "year", "energy_per_capita", "population"]].dropna()
 
     # Slider to pick a specific year from the available dataset
     year = st.slider("Select Year", int(df_map["year"].min()), int(df_map["year"].max()), 2023)
@@ -151,8 +153,10 @@ elif page == "🌍 Global Map":
 
     # 📌 Render the map
     st.plotly_chart(fig, use_container_width=True)
-     
-    # Get global average for comparison
+
+    # 📌 Additional analysis and country-level metrics
+
+    # Calculate global average for comparison
     global_avg = df_year["energy_per_capita"].mean()
     diff = selected_row["energy_per_capita"] - global_avg
     comparison = "above" if diff > 0 else "below"
@@ -161,7 +165,7 @@ elif page == "🌍 Global Map":
     population = selected_row["population"]
     total_energy = selected_row["energy_per_capita"] * population
 
-    # Show enhanced info box
+    # Display enhanced info box
     st.info(f"""
     #### 📄 Details for {selected_country} ({year})
     - 📊 Energy per Capita: **{selected_row['energy_per_capita']:.2f} kWh/person**
