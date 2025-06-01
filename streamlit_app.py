@@ -93,7 +93,6 @@ elif page == "🌍 Global Map":
 
     # 📌 Page Title and Introductory Info
     st.title("🌍 Global Energy Consumption per Capita")
-    st.markdown("Measured in kilowatt-hours per person. Source: [Our World in Data](https://ourworldindata.org/energy)")
 
     # ℹ️ Helper info box to guide users
     st.info("""
