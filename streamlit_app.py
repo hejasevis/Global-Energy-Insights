@@ -426,7 +426,7 @@ elif page == "Growth Rate Trends":
 
     # Optional: Show full table in expander
     with st.expander("🔍 See All Source Growth Averages"):
-    st.dataframe(insight_df)
+        st.dataframe(insight_df)
 
     
 # 🗺 Page 4 - Country Energy Mix
