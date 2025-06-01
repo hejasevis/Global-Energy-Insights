@@ -33,7 +33,7 @@ from streamlit_option_menu import option_menu
 with st.sidebar:
     page = option_menu(
         menu_title="Dashboard Menu",
-        options=["🏠 Home", "🌍 Global Map", "🌐 Deep Analysis", "📈 Growth Rates", "🗺 Country vs Energy Type","🔮 Energy Consumption Forecast"],
+        options=["🏠 Home", "🗺️ Global Map", "🌐 Deep Analysis", "📈 Growth Rates", "🗺 Country vs Energy Type","🔮 Energy Consumption Forecast"],
         icons=[""] * 6,
         default_index=0,
         styles={
@@ -61,7 +61,7 @@ if page == "🏠 Home":
 
     st.markdown("### 🔍 Dashboard Overview")
     st.markdown("""
-    - 🌍 **Global Map**  
+    - 🗺️ **Global Map**  
       View energy consumption per capita by country over time.
 
     - 🌐 **Deep Analysis**  
@@ -87,7 +87,7 @@ if page == "🏠 Home":
     st.info("📌 *This dashboard is developed using Python, Streamlit, and machine learning tools as part of a final year project.*")
 
 
-# 🌍 Page 1 - Global Map
+# 🗺️ Page 1 - Global Map
 
 elif page == "🗺️ Global Map":
 
@@ -96,7 +96,7 @@ elif page == "🗺️ Global Map":
 
     # ℹ️ Helper info box to guide users
     st.info("""
-    This map illustrates per capita energy consumption (in kilowatt-hours per person) 
+    ℹ️ This map illustrates per capita energy consumption (in kilowatt-hours per person) 
     across countries for a selected year.  
     Use the **slider** to pick a year and the **dropdown** to explore a specific country's values.
     """)
