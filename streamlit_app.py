@@ -88,7 +88,6 @@ if page == "🏠 Home":
 
 
 # 🗺️ Page 1 - Global Map
-
 elif page == "🗺️ Global Map":
 
     # 📌 Page Title and Introductory Info
@@ -178,8 +177,18 @@ elif page == "🗺️ Global Map":
   
 # 🌐 Page 2 - Country-Level Deep Analysis
 elif page == "🌐 Deep Analysis":
-    st.title("🔗 Energy Consumption Association Analysis")
 
+    # 📌 Page Title and Overview
+    st.title("🌐 Country-Level Energy Pattern Discovery")
+
+    # ℹ️ Explain the purpose of the page
+    st.info("""
+    This section applies **association rule mining** and **correlation analysis** to uncover hidden relationships 
+    between energy consumption types in selected countries and years.  
+    You can adjust thresholds, year range, and countries to explore different patterns.
+    """)
+
+    # 📌 User Inputs: countries, thresholds, year range
     selected_countries = st.multiselect(
         "Select Countries",
         sorted(df["country"].dropna().unique()),
@@ -189,28 +198,33 @@ elif page == "🌐 Deep Analysis":
     threshold = st.slider("Binary Threshold (0–1 scale)", 0.1, 0.9, 0.3)
     min_support = st.slider("Minimum Support", 0.1, 1.0, 0.4)
     min_lift = st.slider("Minimum Lift", 1.0, 5.0, 1.0)
-
     year_range = st.slider("Select Year Range", 1965, 2023, (2000, 2022))
 
+    # 📌 Trigger analysis with button
     if st.button("Run Analysis"):
+
+        # 📌 Filter the dataset based on user selection
         filtered_df = df[
             (df["country"].isin(selected_countries)) &
             (df["year"].between(year_range[0], year_range[1]))
         ].copy()
 
+        # 📌 Select only consumption-related columns, drop others
         energy_columns = [col for col in filtered_df.columns if 'consumption' in col and 'change' not in col]
         filtered_df = filtered_df[["country", "year"] + energy_columns].dropna()
 
-        # Normalize
+        # 📌 Normalize data between 0–1
         scaler = MinMaxScaler()
         normalized = scaler.fit_transform(filtered_df[energy_columns])
         norm_df = pd.DataFrame(normalized, columns=energy_columns)
 
-        # Binary
+        # 📌 Binarize based on selected threshold
         binary_df = (norm_df > threshold).astype(int)
 
-        # Apriori
+        # 📌 Apply Apriori algorithm to discover frequent itemsets
         frequent_itemsets = apriori(binary_df, min_support=min_support, use_colnames=True)
+
+        # 📌 Generate association rules
         rules = association_rules(frequent_itemsets, metric="lift", min_threshold=min_lift)
         rules_sorted = rules.sort_values(by=["lift", "confidence", "support"], ascending=False)
 
@@ -219,10 +233,11 @@ elif page == "🌐 Deep Analysis":
         st.markdown(f"📅 Showing rules for **{year_range[0]}–{year_range[1]}**")
         st.dataframe(rules_sorted)
 
-        # ⚡ 2. Correlation Heatmap (Plotly)
+        # ⚡ 2. Correlation Heatmap
         st.subheader("⚡ Correlation Heatmap")
-        import plotly.figure_factory as ff
+        st.markdown("This heatmap shows normalized Pearson correlations between different energy consumption types.")
 
+        import plotly.figure_factory as ff
         corr = norm_df.corr()
         z = corr.values
         x = list(corr.columns)
@@ -256,8 +271,9 @@ elif page == "🌐 Deep Analysis":
 
         st.plotly_chart(fig_heatmap, use_container_width=True)
 
-        # 📊 3. Top 10 Rules by Support (Bar Chart)
+        # 📊 3. Top 10 Rules by Support
         st.subheader("📊 Top 10 Rules by Support")
+        st.markdown("Shows the rules with the highest support values, indicating common energy patterns.")
 
         if not rules_sorted.empty:
             top_support = rules_sorted.nlargest(10, 'support')
@@ -297,6 +313,7 @@ elif page == "🌐 Deep Analysis":
             st.plotly_chart(fig2, use_container_width=True)
         else:
             st.warning("No rules to visualize. Try adjusting thresholds or year range.")
+
           
 # 📈 Energy Growth Rates 
 elif page == "📈 Growth Rates":
