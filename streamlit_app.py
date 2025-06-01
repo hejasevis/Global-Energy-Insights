@@ -48,24 +48,43 @@ def load_data():
 
 df = load_data()
 
- # 🏠 Home Page
+# 🏠 Home Page
 if page == "🏠 Home":
-    
+
     st.image("images/background.png", use_container_width=True)
 
     st.title("🔌 Global Energy Dashboard")
-    st.markdown("This interactive dashboard visualizes global energy consumption data from [Our World in Data](https://ourworldindata.org/energy).")
+    st.markdown("""
+        Welcome to the **Global Energy Dashboard**, an interactive platform designed to visualize, analyze, and forecast worldwide energy consumption patterns.  
+        This project is part of a **Computer Engineering Graduation Thesis** and leverages data from [Our World in Data](https://ourworldindata.org/energy).
+    """)
 
-    st.markdown("### 📊 Features:")
-    st.markdown("- 🌍 **Global Map**: Explore per capita energy consumption by country and year.")
-    st.markdown("- 🌐 **Country-Level Analysis**: Discover hidden associations between different energy types with support, confidence, and lift metrics.")
-    st.markdown("- ⚡ **Heatmaps & Rules**: Visualize energy consumption correlations and strongest association rules.")
+    st.markdown("### 🔍 Dashboard Overview")
+    st.markdown("""
+    - 🌍 **Global Map**  
+      View energy consumption per capita by country over time.
 
-    st.markdown("### 📝 How to Use:")
-    st.markdown("Select a page from the sidebar to start exploring the data.")
+    - 🌐 **Deep Analysis**  
+      Uncover meaningful associations between different energy types using Apriori-based rule mining.
+
+    - 📈 **Growth Rates**  
+      Analyze year-over-year changes and long-term trends in energy use.
+
+    - 🗺 **Country vs Energy Type**  
+      Compare countries based on specific energy type consumption and production.
+
+    - 🔮 **Forecasting Module**  
+      Predict future energy demand using machine learning models (Prophet & Random Forest).
+    """)
+
+    st.markdown("### 🧭 How to Navigate")
+    st.markdown("""
+        Use the sidebar on the left to select different dashboard sections.  
+        Each section presents a specific aspect of the dataset, allowing you to explore patterns and predictions.
+    """)
 
     st.markdown("---")
-    st.info("This dashboard is developed as part of a Bachelor's Graduation Project in Computer Engineering.")
+    st.info("📌 *This dashboard is developed using Python, Streamlit, and machine learning tools as part of a final year project at Çukurova University.*")
 
 
 # 🌍 Page 1 - Global Map
