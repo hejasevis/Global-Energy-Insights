@@ -86,8 +86,7 @@ if page == "🏠 Home":
     st.markdown("---")
     st.info("📌 *This dashboard is developed using Python, Streamlit, and machine learning tools as part of a final year project.*")
 
-
-# 🌍 Page 1 - Global Map
+    # 🌍 Page 1 - Global Map
 
 elif page == "🌍 Global Map":
 
@@ -153,6 +152,7 @@ elif page == "🌍 Global Map":
 
     # 📌 Render the map
     st.plotly_chart(fig, use_container_width=True)
+
     
     # 🌐 Page 2 - Country-Level Deep Analysis
 elif page == "🌐 Deep Analysis":
