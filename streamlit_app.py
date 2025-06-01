@@ -482,27 +482,25 @@ elif page == "🗺 Country vs Energy Type":
         st.warning("Renewable/non-renewable data not sufficient to calculate ratio.")
 
 # 🔮 Forecast Page – Prophet & Random Forest Forecasting
-
 elif page == "🔮 Energy Consumption Forecast":
 
-    # 📌 Title & Explanation
+    # 📌 Title & Info Box
     st.title("🔮 Energy Consumption Forecasting with ML Models")
     st.info("""
     This module compares two machine learning models – **Prophet** and **Random Forest** – to forecast future energy consumption based on historical data.  
     You can select a country and energy type, adjust prediction length, and validate model accuracy using backtesting.
     """)
 
-    # 📌 Setup
+    # 📌 Seçim ve veri hazırlığı
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
     df_forecast = df[["country", "year"] + energy_cols].dropna()
     countries = sorted(df_forecast["country"].unique())
 
-    # 📌 User selections
     selected_country = st.selectbox("🌍 Select a Country:", countries)
     selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
     future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
 
-    # 📈 Prophet Model
+    # Prophet Forecast
     st.subheader("📈 Prophet Forecast")
     country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
 
@@ -521,9 +519,8 @@ elif page == "🔮 Energy Consumption Forecast":
 
     st.plotly_chart(plot_plotly(prophet_model, forecast))
 
-    # 🌲 Random Forest Model
+    # Random Forest Forecast
     st.subheader("🌲 Random Forest Forecast")
-
     rf_df = country_data.copy()
     X = rf_df[["year"]]
     y = rf_df[selected_source]
@@ -535,7 +532,24 @@ elif page == "🔮 Energy Consumption Forecast":
     future_df_rf = pd.DataFrame({"year": future_years_rf})
     predictions_rf = rf_model.predict(future_df_rf)
 
-    # 🔍 Prophet vs RF
+    # 🔍 RF Grafik
+    rf_plot = go.Figure()
+    rf_plot.add_trace(go.Scatter(
+        x=future_years_rf,
+        y=predictions_rf,
+        mode="lines+markers",
+        name="RF Prediction",
+        line=dict(color="green")
+    ))
+    rf_plot.update_layout(
+        title=f"Random Forest Forecast: {selected_country} – {selected_source.replace('_consumption','').title()}",
+        xaxis_title="Year",
+        yaxis_title="Predicted Consumption",
+        template="plotly_white"
+    )
+    st.plotly_chart(rf_plot, use_container_width=True)
+
+    # 🔍 Prophet vs RF Comparison
     st.subheader("🔍 Prophet vs Random Forest Forecast Comparison")
     forecast_display = forecast[["ds", "yhat"]].tail(future_years).copy()
     forecast_display["Year"] = forecast_display["ds"].dt.year
@@ -547,11 +561,12 @@ elif page == "🔮 Energy Consumption Forecast":
     })
     st.dataframe(comparison_df)
 
-    # 🧪 Backtesting Accuracy
+    # Backtesting Accuracy
     st.subheader("🧪 Backtesting: Prophet & Random Forest Accuracy")
 
     min_year = int(df_forecast["year"].min())
     max_year = int(df_forecast["year"].max())
+
     split_year = st.slider(
         "📆 Select Last Training Year:",
         min_value=min_year + 5,
@@ -560,7 +575,6 @@ elif page == "🔮 Energy Consumption Forecast":
     )
 
     test_years = list(range(split_year + 1, split_year + future_years + 1))
-
     df_test = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
     df_train = df_test[df_test["year"] <= split_year]
     df_test_actual = df_test[df_test["year"].isin(test_years)]
@@ -568,7 +582,7 @@ elif page == "🔮 Energy Consumption Forecast":
     if len(df_test_actual) < future_years:
         st.warning("⚠️ Not enough actual data points for selected test period.")
     else:
-        # Prophet backtest
+        # Prophet Backtest
         prophet_data = df_train.rename(columns={"year": "ds", selected_source: "y"})
         prophet_data["ds"] = pd.to_datetime(prophet_data["ds"], format="%Y")
         test_model = Prophet(yearly_seasonality=True)
@@ -578,12 +592,12 @@ elif page == "🔮 Energy Consumption Forecast":
         prophet_preds = forecast_test[["ds", "yhat"]].tail(future_years)
         prophet_preds["year"] = prophet_preds["ds"].dt.year
 
-        # Random Forest backtest
+        # RF Backtest
         rf = RandomForestRegressor(n_estimators=100, random_state=42)
         rf.fit(df_train[["year"]], df_train[selected_source])
         rf_preds = rf.predict(pd.DataFrame({"year": test_years}))
 
-        # Combine predictions
+        # Karşılaştırma
         df_compare = pd.DataFrame({
             "Year": test_years,
             "Actual": df_test_actual[selected_source].values,
@@ -591,7 +605,7 @@ elif page == "🔮 Energy Consumption Forecast":
             "RF_Prediction": rf_preds
         })
 
-        # RMSE
+        # Hata metrikleri
         rmse_prophet = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["Prophet_Prediction"]))
         rmse_rf = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["RF_Prediction"]))
 
@@ -599,7 +613,7 @@ elif page == "🔮 Energy Consumption Forecast":
         st.markdown(f"📉 **Prophet RMSE:** `{rmse_prophet:.2f}`")
         st.markdown(f"🌲 **Random Forest RMSE:** `{rmse_rf:.2f}`")
 
-        # 📊 Error Comparison Plot
+        # Grafik: Tahminler vs Gerçek Değerler
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Actual"],
                                  mode="lines+markers", name="Actual"))
@@ -607,7 +621,10 @@ elif page == "🔮 Energy Consumption Forecast":
                                  mode="lines+markers", name="Prophet"))
         fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["RF_Prediction"],
                                  mode="lines+markers", name="Random Forest"))
-        fig.update_layout(title="Model Predictions vs Actual Values",
-                          xaxis_title="Year", yaxis_title="Energy Consumption",
-                          template="plotly_white")
+        fig.update_layout(
+            title="📊 Actual vs Predicted Energy Consumption",
+            xaxis_title="Year",
+            yaxis_title="Energy Consumption",
+            template="plotly_white"
+        )
         st.plotly_chart(fig)
