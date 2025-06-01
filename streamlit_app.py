@@ -86,8 +86,7 @@ if page == "🏠 Home":
     st.markdown("---")
     st.info("📌 *This dashboard is developed using Python, Streamlit, and machine learning tools as part of a final year project.*")
 
-    # 🌍 Page 1 - Global Map
-
+# 🌍 Page 1 - Global Map
 elif page == "🌍 Global Map":
 
     # 📌 Page Title and Introductory Info
@@ -152,9 +151,8 @@ elif page == "🌍 Global Map":
 
     # 📌 Render the map
     st.plotly_chart(fig, use_container_width=True)
-
-    
-    # 🌐 Page 2 - Country-Level Deep Analysis
+  
+# 🌐 Page 2 - Country-Level Deep Analysis
 elif page == "🌐 Deep Analysis":
     st.title("🔗 Energy Consumption Association Analysis")
 
@@ -275,8 +273,7 @@ elif page == "🌐 Deep Analysis":
             st.plotly_chart(fig2, use_container_width=True)
         else:
             st.warning("No rules to visualize. Try adjusting thresholds or year range.")
-           
-
+          
 # 📈 Energy Growth Rates 
 elif page == "📈 Growth Rates":
     st.title("📈 Energy Source Growth Analysis")
@@ -326,9 +323,8 @@ elif page == "📈 Growth Rates":
     )
 
     st.plotly_chart(fig, use_container_width=True)
-
     
-    # 🗺 Country vs Energy Type
+# 🗺 Country vs Energy Type
 elif page == "🗺 Country vs Energy Type":
     st.title("🗺 Country-Specific Energy Source Breakdown")
     st.markdown("Compare energy source consumption breakdown for a selected country by year or year range.")
