@@ -93,9 +93,17 @@ elif page == "🌍 Global Map":
     st.title("🌍 Global Energy Consumption per Capita")
     st.markdown("Measured in kilowatt-hours per person. Source: [Our World in Data](https://ourworldindata.org/energy)")
 
+    # ℹ️ Helper info box to guide users
+    st.info("""
+    This map illustrates per capita energy consumption (in kilowatt-hours per person) 
+    across countries for a selected year.  
+    Use the **slider** to pick a year and the **dropdown** to explore a specific country's values.
+    """)
+
     # 📌 Year selection section for filtering the map data
-    # This allows users to dynamically explore how energy consumption per capita changes over time
     st.markdown("### 📅 Year Selection")
+
+    # Select relevant columns and remove rows with missing values
     df_map = df[["iso_code", "country", "year", "energy_per_capita"]].dropna()
 
     # Slider to pick a specific year from the available dataset
@@ -120,7 +128,6 @@ elif page == "🌍 Global Map":
 
     # 📌 Choropleth Map
     # This visualizes per capita energy consumption using a colored world map
-    # Darker colors represent higher energy use per person
     fig = px.choropleth(
         df_year,
         locations="iso_code",
@@ -151,15 +158,6 @@ elif page == "🌍 Global Map":
 
     # 📌 Render the map
     st.plotly_chart(fig, use_container_width=True)
-
-    # Before the slider
-    st.info("""
-    This map illustrates per capita energy consumption (in kilowatt-hours per person) 
-    across countries for a selected year.  
-    Use the **slider** to pick a year and the **dropdown** to explore a specific country's values.
-    """)
-
-    st.markdown("### 📅 Year Selection")
 
   
 # 🌐 Page 2 - Country-Level Deep Analysis
