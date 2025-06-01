@@ -1,43 +1,65 @@
-# 🚀 Temel Kütüphaneler
+# 🚀 Core Libraries
 import streamlit as st
 import pandas as pd
 import numpy as np
 
-# 📈 Grafik ve Görselleştirme
+# 📊 Visualization
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# 📊 Veri İşleme & Makine Öğrenmesi
+# 🔎 Data Processing & Machine Learning
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# 🔍 Apriori Analizi
+# 📌 Association Rule Mining
 from mlxtend.frequent_patterns import apriori, association_rules
 
-# 🧠 Zaman Serisi Tahmin
+# ⏳ Time Series Forecasting
 from prophet import Prophet
 from prophet.plot import plot_plotly
 
-# 🖼 Görsel İşleme (varsa kullanılabilir)
+# 🖼 Image Processing (optional)
 from PIL import Image
 
-
-
-# Page setup
-st.set_page_config(layout="wide")
+# 🌐 Streamlit Option Menu
 from streamlit_option_menu import option_menu
+
+# ⚙️ Page Configuration
+st.set_page_config(layout="wide")
+
+# 📋 Sidebar Navigation Menu
 with st.sidebar:
     page = option_menu(
-        menu_title="Dashboard Menu",
-        options=["🏠 Home", "🗺️ Global Map", "🌐 Deep Analysis", "📈 Growth Rates", "🗺 Country vs Energy Type","🔮 Energy Consumption Forecast"],
-        icons=[""] * 6,
+        menu_title="📊 Navigation",
+        options=[
+            "🏠 Home",
+            "🌍 Global Energy Map",
+            "🔍 Association Analysis",
+            "📈 Growth Rate Trends",
+            "🗺 Country Energy Mix",
+            "🔮 Forecasting"
+        ],
+        icons=["house", "globe", "bar-chart-line", "graph-up-arrow", "pie-chart", "stars"],
         default_index=0,
         styles={
-            "icon": {"display": "none"}
+            "container": {"padding": "0!important", "background-color": "#111111"},
+            "nav-link": {
+                "font-size": "16px",
+                "text-align": "left",
+                "margin": "5px",
+                "--hover-color": "#31333F",
+            },
+            "nav-link-selected": {
+                "background-color": "#5e60ce",
+                "color": "white",
+                "font-weight": "bold",
+                "border-radius": "8px",
+            },
+            "icon": {"color": "#ffffff"},
         }
     )
 
@@ -480,6 +502,7 @@ elif page == "🗺 Country vs Energy Type":
         st.success(f"🔋 **Estimated Renewable Share:** {renewable_ratio:.2f}% of total energy consumption")
     else:
         st.warning("Renewable/non-renewable data not sufficient to calculate ratio.")
+
 
 # 🔮 Forecast Page – Prophet & Random Forest Forecasting
 elif page == "🔮 Energy Consumption Forecast":
