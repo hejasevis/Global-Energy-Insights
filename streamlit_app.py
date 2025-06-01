@@ -56,7 +56,7 @@ if page == "🏠 Home":
     st.title("🔌 Global Energy Dashboard")
     st.markdown("""
         Welcome to the **Global Energy Dashboard**, an interactive platform designed to visualize, analyze, and forecast worldwide energy consumption patterns.  
-        This project is part of a **Computer Engineering Graduation Thesis** and leverages data from [Our World in Data](https://ourworldindata.org/energy).
+        This project leverages data from [Our World in Data](https://ourworldindata.org/energy).
     """)
 
     st.markdown("### 🔍 Dashboard Overview")
@@ -84,7 +84,7 @@ if page == "🏠 Home":
     """)
 
     st.markdown("---")
-    st.info("📌 *This dashboard is developed using Python, Streamlit, and machine learning tools as part of a final year project at Çukurova University.*")
+    st.info("📌 *This dashboard is developed using Python, Streamlit, and machine learning tools as part of a final year project.*")
 
 
 # 🌍 Page 1 - Global Map
