@@ -151,6 +151,16 @@ elif page == "🌍 Global Map":
 
     # 📌 Render the map
     st.plotly_chart(fig, use_container_width=True)
+
+    # Before the slider
+    st.info("""
+    This map illustrates per capita energy consumption (in kilowatt-hours per person) 
+    across countries for a selected year.  
+    Use the **slider** to pick a year and the **dropdown** to explore a specific country's values.
+    """)
+
+    st.markdown("### 📅 Year Selection")
+
   
 # 🌐 Page 2 - Country-Level Deep Analysis
 elif page == "🌐 Deep Analysis":
