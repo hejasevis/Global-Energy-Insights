@@ -385,33 +385,53 @@ elif page == "📈 Growth Rates":
     st.plotly_chart(fig, use_container_width=True)
 
     
-# 🗺 Country vs Energy Type
+# 🗺 Page 4 - Country vs Energy Type
 elif page == "🗺 Country vs Energy Type":
-    st.title("🗺 Country-Specific Energy Source Breakdown")
-    st.markdown("Compare energy source consumption breakdown for a selected country by year or year range.")
 
-    # Enerji kolonları
+    # 📌 Title and Info Box
+    st.title("🗺 Energy Mix Analysis by Country and Year")
+    st.info("""
+    This section compares how different energy sources contribute to total energy consumption for a selected country.  
+    You can analyze energy share based on a specific year range and focus on selected types such as fossil, nuclear, or renewables.
+    """)
+
+    # 📌 Prepare column groups
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
+    renewable_cols = [
+        "solar_consumption", "wind_consumption", "biofuel_consumption",
+        "hydro_consumption", "other_renewable_consumption"
+    ]
+    non_renewable_cols = [
+        "coal_consumption", "oil_consumption", "gas_consumption", "nuclear_consumption"
+    ]
+
+    # 📌 Drop rows with missing energy values
     df_energy = df[["country", "year"] + energy_cols].dropna()
 
-    # Ülke seçimi
+    # 🌍 Country selection
     country_list = sorted(df_energy["country"].unique())
     selected_country = st.selectbox("Select a Country:", country_list)
 
-    # Yıl aralığı seçimi
+    # 📆 Year range selection
     min_year = int(df_energy["year"].min())
     max_year = int(df_energy["year"].max())
     year_range = st.slider("Select Year Range:", min_year, max_year, (2020, 2022))
 
-    # Filtrelenmiş veri
-    country_data = df_energy[(df_energy["country"] == selected_country) & 
-                             (df_energy["year"] >= year_range[0]) & 
-                             (df_energy["year"] <= year_range[1])]
+    # 📌 Filter dataset by country and year
+    country_data = df_energy[
+        (df_energy["country"] == selected_country) &
+        (df_energy["year"] >= year_range[0]) &
+        (df_energy["year"] <= year_range[1])
+    ]
 
-    # Enerji türü seçimi
-    selected_energy = st.multiselect("Select Energy Sources to Compare:", energy_cols, default=energy_cols[:5])
+    # ⚡ Energy source selection
+    selected_energy = st.multiselect(
+        "Select Energy Sources to Compare:",
+        energy_cols,
+        default=energy_cols[:5]
+    )
 
-    # Ortalama tüketim hesapla
+    # 📊 Average consumption for selected energy types
     avg_data = country_data[selected_energy].mean().sort_values(ascending=False)
     avg_df = avg_data.reset_index()
     avg_df.columns = ["Energy Source", "Average Consumption"]
@@ -428,8 +448,8 @@ elif page == "🗺 Country vs Energy Type":
     fig_pie.update_layout(template="plotly_white")
     st.plotly_chart(fig_pie, use_container_width=True)
 
-    # 📋 Yorum
-    st.markdown("### ⚡Insights")
+    # ⚡ Insight Section
+    st.markdown("### ⚡ Insights")
 
     total = avg_df["Average Consumption"].sum()
     avg_df["Percentage"] = (avg_df["Average Consumption"] / total * 100).round(2)
@@ -441,12 +461,25 @@ elif page == "🗺 Country vs Energy Type":
     - **Most used energy source:** `{top_row['Energy Source'].replace('_consumption', '').title()}` with **{top_row['Percentage']}%**
     - **Least used energy source:** `{bottom_row['Energy Source'].replace('_consumption', '').title()}` with **{bottom_row['Percentage']}%**
     - Total consumption (for selected sources and years): **{total:,.0f} kWh**
-    """)  
+    """)
 
-    # 👀 Detaylı oranlar listesi
+    # 🔍 Expandable full breakdown
     with st.expander("🔍 See Full Share Breakdown"):
         for _, row in avg_df.iterrows():
             st.markdown(f"- `{row['Energy Source'].replace('_consumption', '').title()}`: **{row['Percentage']}%**")
+
+    # 💚 Additional Indicator: Renewable Ratio
+    st.markdown("### 💚 Renewable Energy Share")
+
+    # Calculate renewable and non-renewable sums
+    renew_sum = country_data[renewable_cols].sum().sum() if set(renewable_cols).issubset(country_data.columns) else 0
+    non_renew_sum = country_data[non_renewable_cols].sum().sum() if set(non_renewable_cols).issubset(country_data.columns) else 0
+
+    if renew_sum + non_renew_sum > 0:
+        renewable_ratio = (renew_sum / (renew_sum + non_renew_sum)) * 100
+        st.success(f"🔋 **Estimated Renewable Share:** {renewable_ratio:.2f}% of total energy consumption")
+    else:
+        st.warning("Renewable/non-renewable data not sufficient to calculate ratio.")
 
 # 🔮 Energy Consumption Forecast
 elif page == "🔮 Energy Consumption Forecast":
