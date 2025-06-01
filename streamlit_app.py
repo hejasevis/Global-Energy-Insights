@@ -119,13 +119,6 @@ elif page == "🌍 Global Map":
     # Get data for the selected country
     selected_row = df_year[df_year["country"] == selected_country].iloc[0]
 
-    # 📌 Display detailed metrics for the selected country and year
-    st.markdown(f"#### 📄 Details for {selected_country} ({year})")
-    st.markdown(f"- 📊 Energy per Capita: **{selected_row['energy_per_capita']:.2f} kWh/person**")
-    st.markdown(f"- 📆 Year: **{selected_row['year']}**")
-    st.markdown("---")
-    st.markdown(f"Currently showing energy use for the year **{year}**")
-
     # 📌 Choropleth Map
     # This visualizes per capita energy consumption using a colored world map
     fig = px.choropleth(
@@ -158,6 +151,13 @@ elif page == "🌍 Global Map":
 
     # 📌 Render the map
     st.plotly_chart(fig, use_container_width=True)
+
+    # 📌 Show selected country’s data in a neat info box
+    st.info(f"""
+    #### 📄 Details for {selected_country} ({year})
+    - 📊 Energy per Capita: **{selected_row['energy_per_capita']:.2f} kWh/person**
+    - 📆 Year: **{selected_row['year']}**
+    """)
 
   
 # 🌐 Page 2 - Country-Level Deep Analysis
