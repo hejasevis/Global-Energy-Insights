@@ -151,11 +151,24 @@ elif page == "🌍 Global Map":
 
     # 📌 Render the map
     st.plotly_chart(fig, use_container_width=True)
+     
+    # Get global average for comparison
+    global_avg = df_year["energy_per_capita"].mean()
+    diff = selected_row["energy_per_capita"] - global_avg
+    comparison = "above" if diff > 0 else "below"
 
-    # 📌 Show selected country’s data in a neat info box
+    # Calculate total energy consumption
+    population = selected_row["population"]
+    total_energy = selected_row["energy_per_capita"] * population
+
+    # Show enhanced info box
     st.info(f"""
     #### 📄 Details for {selected_country} ({year})
     - 📊 Energy per Capita: **{selected_row['energy_per_capita']:.2f} kWh/person**
+    - 👥 Population: **{population:,.0f}**
+    - 🔋 Estimated Total Energy Consumption: **{total_energy:,.0f} kWh**
+    - 🌍 Global Average (same year): **{global_avg:.2f} kWh/person**
+    - 🔎 This is **{abs(diff):.2f} kWh/person {comparison}** the global average.
     - 📆 Year: **{selected_row['year']}**
     """)
 
