@@ -1,7 +1,8 @@
-⚡ Global Energy Insights
-An interactive dashboard that visualizes global energy consumption trends, growth rates, source distributions, and forecasts using machine learning models.
+⚡ **Global Energy Insights**
+An AI-powered Streamlit dashboard for exploring, analyzing, and forecasting global energy consumption trends.
+Gain insights into country-level energy patterns, renewable ratios, growth dynamics, and future projections — all in one place.
 
-🌐 Live at Streamlit: global-energy-insights.streamlit.app
+🌍 Live App: global-energy-insights.streamlit.app
 
 ⚡ **Features**
 
