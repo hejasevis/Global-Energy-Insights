@@ -96,7 +96,7 @@ elif page == "🗺️ Global Map":
 
     # ℹ️ Helper info box to guide users
     st.info("""
-    ℹ️ This map illustrates per capita energy consumption (in kilowatt-hours per person) 
+    This map illustrates per capita energy consumption (in kilowatt-hours per person) 
     across countries for a selected year.  
     Use the **slider** to pick a year and the **dropdown** to explore a specific country's values.
     """)
