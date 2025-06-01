@@ -315,36 +315,55 @@ elif page == "🌐 Deep Analysis":
             st.warning("No rules to visualize. Try adjusting thresholds or year range.")
 
           
-# 📈 Energy Growth Rates 
+# 📈 Page 3 - Energy Growth Rates
 elif page == "📈 Growth Rates":
-    st.title("📈 Energy Source Growth Analysis")
-    st.markdown("Visualize **annual growth/change rates** of various energy sources for the World or selected countries.")
 
-    # 📊 Veriyi yükle
+    # 📌 Page Title
+    st.title("📈 Annual Growth Trends in Energy Consumption")
+
+    # ℹ️ Info box to explain this section
+    st.info("""
+    This section visualizes **annual growth rates** in energy consumption for various sources.  
+    You can select a specific country or view global trends, and filter by year range and energy types.
+    """)
+
+    # 📊 Select energy consumption columns (e.g. coal_consumption, solar_consumption)
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
+
+    # 📌 Drop rows with missing values in relevant columns
     df_clean = df[["country", "year"] + energy_cols].dropna()
 
-    # 🌍 Ülke seçimi
+    # 🌍 Country selection
     countries = sorted(df_clean["country"].unique())
-    countries.insert(0, "World")
+    countries.insert(0, "World")  # Add 'World' to allow global analysis
     selected_country = st.selectbox("Select Country (or World):", countries)
 
-    # 📆 Yıl aralığı seçimi
+    # 📆 Year range selection
     country_df = df_clean[df_clean["country"] == selected_country]
     min_year = int(country_df["year"].min())
     max_year = int(country_df["year"].max())
     year_range = st.slider("Select Year Range:", min_year, max_year, (2010, 2022))
-    filtered_df = country_df[(country_df["year"] >= year_range[0]) & (country_df["year"] <= year_range[1])].copy()
 
-    # 🔢 Yıllık % değişim oranı hesapla
+    # 📌 Filter data for selected year range
+    filtered_df = country_df[
+        (country_df["year"] >= year_range[0]) &
+        (country_df["year"] <= year_range[1])
+    ].copy()
+
+    # 🔢 Calculate annual % change for each energy type
     for col in energy_cols:
         filtered_df[col + "_change_%"] = filtered_df[col].pct_change() * 100
 
-    # ⚡ Enerji türü seçimi
-    selected_sources = st.multiselect("Select Energy Sources:", energy_cols, default=energy_cols[:3])
+    # ⚡ Energy source selection
+    selected_sources = st.multiselect(
+        "Select Energy Sources:",
+        energy_cols,
+        default=energy_cols[:3]
+    )
 
-    # 📈 Plotly grafiği oluştur
+    # 📈 Plotly line chart
     st.markdown("### 📊 Annual Growth Rates by Source")
+
     fig = go.Figure()
 
     for col in selected_sources:
@@ -364,6 +383,7 @@ elif page == "📈 Growth Rates":
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
     
 # 🗺 Country vs Energy Type
 elif page == "🗺 Country vs Energy Type":
