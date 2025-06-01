@@ -34,14 +34,14 @@ st.set_page_config(layout="wide")
 # 📋 Sidebar Navigation Menu
 with st.sidebar:
     page = option_menu(
-        menu_title="📊 Navigation",
+        menu_title="Dashboard Menu",
         options=[
-            "🏠 Home",
-            "🌍 Global Energy Map",
-            "🔍 Association Analysis",
-            "📈 Growth Rate Trends",
-            "🗺 Country Energy Mix",
-            "🔮 Forecasting"
+            "Home",
+            "Global Energy Map",
+            "Energy Relationships",
+            "Growth Rate Trends",
+            "Country Energy Mix",
+            "Forecasting"
         ],
         icons=["house", "globe", "bar-chart-line", "graph-up-arrow", "pie-chart", "stars"],
         default_index=0,
