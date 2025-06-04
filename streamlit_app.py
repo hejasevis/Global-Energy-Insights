@@ -562,7 +562,7 @@ elif page == "Country Energy Mix":
         st.warning("Renewable/non-renewable data not sufficient to calculate ratio.")
 
 
-# 🔮 Future Energy Forecast
+# 🔮 Future Energy Forecast (Optimized)
 elif page == "Future Energy Forecast":
 
     st.title("🔮 Future Energy Forecast with Machine Learning")
@@ -573,7 +573,7 @@ elif page == "Future Energy Forecast":
 
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
     df_forecast = df[["country", "year"] + energy_cols].dropna()
-    df_forecast = df_forecast[df_forecast["year"] >= 1965]
+    df_forecast = df_forecast[df_forecast["year"] >= 1965]  # Lower year limit adjusted to 1965
     countries = sorted(df_forecast["country"].unique())
 
     selected_country = st.selectbox("🌍 Select a Country:", countries)
@@ -599,8 +599,8 @@ elif page == "Future Energy Forecast":
 
     st.plotly_chart(plot_plotly(prophet_model, forecast))
 
-    # Random Forest Forecast (Advanced)
-    st.subheader("🌲 Random Forest Forecast (Advanced)")
+    # Random Forest Forecast (Optimized)
+    st.subheader("🌲 Random Forest Forecast (Optimized)")
     rf_df = country_data.copy()
     rf_df['year_squared'] = rf_df['year'] ** 2
     rf_df['year_cubed'] = rf_df['year'] ** 3
@@ -642,7 +642,7 @@ elif page == "Future Energy Forecast":
 
     split_year = st.slider(
         "📆 Select Last Training Year:",
-        min_value=min_year + 5,
+        min_value=min_year,
         max_value=max_year - future_years,
         value=2015
     )
@@ -666,14 +666,15 @@ elif page == "Future Energy Forecast":
 
         df_train['year_squared'] = df_train['year'] ** 2
         df_train['year_cubed'] = df_train['year'] ** 3
-        df_test_input = pd.DataFrame({
-            "year": test_years,
-            "year_squared": [y**2 for y in test_years],
-            "year_cubed": [y**3 for y in test_years]
-        })
         rf = RandomForestRegressor(n_estimators=300, max_depth=8, min_samples_split=4, random_state=42)
         rf.fit(df_train[['year', 'year_squared', 'year_cubed']], df_train[selected_source])
-        rf_preds = rf.predict(df_test_input)
+
+        future_rf_test = pd.DataFrame({
+            'year': test_years,
+            'year_squared': [y**2 for y in test_years],
+            'year_cubed': [y**3 for y in test_years]
+        })
+        rf_preds = rf.predict(future_rf_test)
 
         df_compare = pd.DataFrame({
             "Year": test_years,
