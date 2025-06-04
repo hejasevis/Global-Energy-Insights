@@ -511,6 +511,10 @@ elif page == "Country Energy Mix":
         default=energy_cols[:5]
     )
 
+    if not selected_energy:
+        st.warning("Please select at least one energy source to display the energy mix.")
+        st.stop()
+
     # 📊 Average consumption for selected energy types
     avg_data = country_data[selected_energy].mean().sort_values(ascending=False)
     avg_df = avg_data.reset_index()
