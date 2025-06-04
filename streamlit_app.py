@@ -163,13 +163,15 @@ elif page == "Global Energy Map":
     # 📌 Layout and Theme
     # Custom styling for dark mode compatibility
     fig.update_layout(
-        margin=dict(l=0, r=0, t=60, b=0),
-        height=600,
-        paper_bgcolor="#111111",
-        plot_bgcolor="#1e1e1e",
-        font=dict(color="white", size=12),
-        geo_bgcolor="#1e1e1e"
+    template="plotly_white",  # Light mode styling
+    margin=dict(l=0, r=0, t=60, b=0),
+    height=600,
+    paper_bgcolor="white",
+    plot_bgcolor="white",
+    font=dict(color="black", size=12),
+    geo_bgcolor="white"
     )
+
 
     # 📌 Render the map
     st.plotly_chart(fig, use_container_width=True)
