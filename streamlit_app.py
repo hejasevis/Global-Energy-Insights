@@ -570,6 +570,7 @@ import numpy as np
 from prophet import Prophet
 from prophet.plot import plot_plotly
 from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
+from xgboost import XGBRegressor
 import plotly.graph_objects as go
 
 # --- Load Data ---
@@ -578,7 +579,7 @@ df = df[["country", "year", "solar_consumption"]].dropna()
 df = df[df["year"] >= 2000]
 
 # --- Streamlit UI ---
-st.title("🔮 Improved Energy Forecasting with Prophet")
+st.title("🔮 Energy Forecast with Prophet & XGBoost")
 st.sidebar.header("Configuration")
 
 countries = sorted(df["country"].unique())
@@ -591,8 +592,8 @@ if country_df.shape[0] < 8:
     st.warning("⚠️ Not enough data to make a forecast.")
     st.stop()
 
-# --- Prophet Forecast with log transform ---
-st.subheader("📈 Prophet Forecast with Log Transform")
+# --- Prophet Forecast ---
+st.subheader("📈 Prophet Forecast")
 prophet_df = country_df.rename(columns={"year": "ds", "solar_consumption": "y"})
 prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
 prophet_df["y"] = np.log1p(prophet_df["y"])
@@ -605,22 +606,38 @@ forecast = model.predict(future)
 forecast["yhat"] = np.expm1(forecast["yhat"])
 forecast["ds"] = forecast["ds"].dt.year
 
-fig1 = go.Figure()
-fig1.add_trace(go.Scatter(x=country_df["year"], y=country_df["solar_consumption"],
-                          mode="lines+markers", name="Actual"))
-fig1.add_trace(go.Scatter(x=forecast["ds"], y=forecast["yhat"],
-                          mode="lines+markers", name="Forecast"))
-fig1.update_layout(title="Solar Consumption Forecast", xaxis_title="Year", yaxis_title="Consumption")
-st.plotly_chart(fig1)
+# --- XGBoost Forecast ---
+st.subheader("🌲 XGBoost Forecast")
+X = country_df[["year"]]
+y = country_df["solar_consumption"]
+model_xgb = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+model_xgb.fit(X, y)
 
-# --- Forecast Table ---
-st.subheader("📊 Forecast Table")
-future_years = list(range(int(country_df["year"].max())+1, int(country_df["year"].max())+1+years_to_predict))
-forecast_display = forecast[forecast["ds"].isin(future_years)][["ds", "yhat"]].rename(columns={"ds": "Year", "yhat": "Forecast"})
-st.dataframe(forecast_display)
+future_years = list(range(int(X["year"].max())+1, int(X["year"].max())+1+years_to_predict))
+X_future = pd.DataFrame({"year": future_years})
+y_pred_xgb = model_xgb.predict(X_future)
+
+# --- Plot Actual vs Forecast ---
+st.subheader("📊 Actual vs Forecast Comparison")
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=country_df["year"], y=country_df["solar_consumption"],
+                         mode="lines+markers", name="Actual"))
+fig.add_trace(go.Scatter(x=forecast["ds"], y=forecast["yhat"],
+                         mode="lines+markers", name="Prophet Forecast"))
+fig.add_trace(go.Scatter(x=X_future["year"], y=y_pred_xgb,
+                         mode="lines+markers", name="XGBoost Forecast"))
+fig.update_layout(title="Energy Consumption Forecast", xaxis_title="Year", yaxis_title="Consumption")
+st.plotly_chart(fig)
+
+# --- Forecast Tables ---
+st.subheader("📅 Forecast Tables")
+prophet_forecast_table = forecast[forecast["ds"].isin(future_years)][["ds", "yhat"]].rename(columns={"ds": "Year", "yhat": "Prophet_Forecast"})
+xgb_forecast_table = pd.DataFrame({"Year": future_years, "XGBoost_Forecast": y_pred_xgb})
+merged = pd.merge(prophet_forecast_table, xgb_forecast_table, on="Year")
+st.dataframe(merged)
 
 # --- Backtesting ---
-st.subheader("🧪 Backtesting Prophet")
+st.subheader("🧪 Backtesting Prophet & XGBoost")
 latest_year = int(country_df["year"].max())
 min_year = int(country_df["year"].min())
 cutoff = st.slider("📆 Training Data Ends At", min_value=min_year+5, max_value=latest_year-years_to_predict, value=latest_year-years_to_predict)
@@ -632,32 +649,43 @@ if test.shape[0] < years_to_predict:
     st.warning("⚠️ Not enough test data for backtesting.")
     st.stop()
 
-train_df = train.rename(columns={"year": "ds", "solar_consumption": "y"})
-train_df["ds"] = pd.to_datetime(train_df["ds"], format="%Y")
-train_df["y"] = np.log1p(train_df["y"])
+# Prophet Backtest
+train_prophet = train.rename(columns={"year": "ds", "solar_consumption": "y"})
+train_prophet["ds"] = pd.to_datetime(train_prophet["ds"], format="%Y")
+train_prophet["y"] = np.log1p(train_prophet["y"])
 
 bt_model = Prophet(yearly_seasonality=True)
-bt_model.fit(train_df)
+bt_model.fit(train_prophet)
 future_bt = bt_model.make_future_dataframe(periods=years_to_predict, freq="Y")
 forecast_bt = bt_model.predict(future_bt)
 forecast_bt["yhat"] = np.expm1(forecast_bt["yhat"])
 forecast_bt["year"] = forecast_bt["ds"].dt.year
 
+# XGBoost Backtest
+model_xgb_bt = XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42)
+model_xgb_bt.fit(train[["year"]], train["solar_consumption"])
+y_pred_bt_xgb = model_xgb_bt.predict(test[["year"]])
+
+# Combine Results
 bt_results = pd.DataFrame({
     "Year": test["year"].values,
     "Actual": test["solar_consumption"].values,
-    "Forecast": forecast_bt[forecast_bt["year"].isin(test["year"])] ["yhat"].values
+    "Prophet": forecast_bt[forecast_bt["year"].isin(test["year"])] ["yhat"].values,
+    "XGBoost": y_pred_bt_xgb
 })
 
-rmse = np.sqrt(mean_squared_error(bt_results["Actual"], bt_results["Forecast"]))
-mape = mean_absolute_percentage_error(bt_results["Actual"], bt_results["Forecast"]) * 100
+rmse_prophet = np.sqrt(mean_squared_error(bt_results["Actual"], bt_results["Prophet"]))
+rmse_xgb = np.sqrt(mean_squared_error(bt_results["Actual"], bt_results["XGBoost"]))
+mape_prophet = mean_absolute_percentage_error(bt_results["Actual"], bt_results["Prophet"])) * 100
+mape_xgb = mean_absolute_percentage_error(bt_results["Actual"], bt_results["XGBoost"])) * 100
 
 st.dataframe(bt_results)
-st.markdown(f"📉 **RMSE:** {rmse:.2f}")
-st.markdown(f"📊 **MAPE:** {mape:.2f}%")
+st.markdown(f"📉 **Prophet RMSE:** {rmse_prophet:.2f} | MAPE: {mape_prophet:.2f}%")
+st.markdown(f"🌲 **XGBoost RMSE:** {rmse_xgb:.2f} | MAPE: {mape_xgb:.2f}%")
 
-fig2 = go.Figure()
-fig2.add_trace(go.Scatter(x=bt_results["Year"], y=bt_results["Actual"], name="Actual", mode="lines+markers"))
-fig2.add_trace(go.Scatter(x=bt_results["Year"], y=bt_results["Forecast"], name="Forecast", mode="lines+markers"))
-fig2.update_layout(title="Backtesting: Actual vs Forecast", xaxis_title="Year", yaxis_title="Consumption")
-st.plotly_chart(fig2)
+fig_bt = go.Figure()
+fig_bt.add_trace(go.Scatter(x=bt_results["Year"], y=bt_results["Actual"], name="Actual", mode="lines+markers"))
+fig_bt.add_trace(go.Scatter(x=bt_results["Year"], y=bt_results["Prophet"], name="Prophet", mode="lines+markers"))
+fig_bt.add_trace(go.Scatter(x=bt_results["Year"], y=bt_results["XGBoost"], name="XGBoost", mode="lines+markers"))
+fig_bt.update_layout(title="Backtesting: Actual vs Forecast", xaxis_title="Year", yaxis_title="Consumption")
+st.plotly_chart(fig_bt)
