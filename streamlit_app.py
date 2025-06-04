@@ -562,18 +562,19 @@ elif page == "Country Energy Mix":
         st.warning("Renewable/non-renewable data not sufficient to calculate ratio.")
 
 
-# 🔮 Future Energy Forecast (Scaled & Optimized)
+# 🔮 Future Energy Forecast
 elif page == "Future Energy Forecast":
 
+    # 📌 Title & Info Box
     st.title("🔮 Future Energy Forecast with Machine Learning")
     st.info("""
     This module compares two machine learning models – **Prophet** and **Random Forest** – to forecast future energy consumption based on historical data.  
     Select a country and energy type, adjust prediction length, and validate model accuracy using backtesting and insights.
     """)
 
+    # 📌 Selection and data prep
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
     df_forecast = df[["country", "year"] + energy_cols].dropna()
-    df_forecast = df_forecast[df_forecast["year"] >= 1965]
     countries = sorted(df_forecast["country"].unique())
 
     selected_country = st.selectbox("🌍 Select a Country:", countries)
@@ -591,7 +592,7 @@ elif page == "Future Energy Forecast":
     prophet_df = country_data.rename(columns={"year": "ds", selected_source: "y"})
     prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
 
-    prophet_model = Prophet(yearly_seasonality=True, changepoint_prior_scale=0.5, seasonality_mode='multiplicative')
+    prophet_model = Prophet(yearly_seasonality=True)
     prophet_model.fit(prophet_df)
 
     future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y")
@@ -599,35 +600,33 @@ elif page == "Future Energy Forecast":
 
     st.plotly_chart(plot_plotly(prophet_model, forecast))
 
-    # Random Forest Forecast (With Scaling)
-    st.subheader("🌲 Random Forest Forecast (With Scaling)")
+    # Random Forest Forecast
+    st.subheader("🌲 Random Forest Forecast")
     rf_df = country_data.copy()
+    X = rf_df[["year"]]
+    y = rf_df[selected_source]
 
-    scaler = MinMaxScaler()
-    y_scaled = scaler.fit_transform(rf_df[[selected_source]]).flatten()
+    rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_model.fit(X, y)
 
-    rf_df['year_squared'] = rf_df['year'] ** 2
-    rf_df['year_cubed'] = rf_df['year'] ** 3
-    rf_df['year_log'] = np.log1p(rf_df['year'])
-    X = rf_df[['year', 'year_squared', 'year_cubed', 'year_log']]
-
-    rf_model = RandomForestRegressor(n_estimators=500, max_depth=12, min_samples_split=3, random_state=42)
-    rf_model.fit(X, y_scaled)
-
-    future_years_rf = list(range(rf_df["year"].max() + 1, rf_df["year"].max() + future_years + 1))
-    future_df_rf = pd.DataFrame({
-        'year': future_years_rf,
-        'year_squared': [y**2 for y in future_years_rf],
-        'year_cubed': [y**3 for y in future_years_rf],
-        'year_log': [np.log1p(y) for y in future_years_rf]
-    })
-
-    predictions_rf_scaled = rf_model.predict(future_df_rf)
-    predictions_rf = scaler.inverse_transform(predictions_rf_scaled.reshape(-1, 1)).flatten()
+    future_years_rf = list(range(X["year"].max() + 1, X["year"].max() + future_years + 1))
+    future_df_rf = pd.DataFrame({"year": future_years_rf})
+    predictions_rf = rf_model.predict(future_df_rf)
 
     rf_plot = go.Figure()
-    rf_plot.add_trace(go.Scatter(x=future_years_rf, y=predictions_rf, mode="lines+markers", name="RF Prediction", line=dict(color="green")))
-    rf_plot.update_layout(title=f"Random Forest Forecast: {selected_country} – {selected_source.replace('_consumption','').title()}", xaxis_title="Year", yaxis_title="Predicted Consumption", template="plotly_white")
+    rf_plot.add_trace(go.Scatter(
+        x=future_years_rf,
+        y=predictions_rf,
+        mode="lines+markers",
+        name="RF Prediction",
+        line=dict(color="green")
+    ))
+    rf_plot.update_layout(
+        title=f"Random Forest Forecast: {selected_country} – {selected_source.replace('_consumption','').title()}",
+        xaxis_title="Year",
+        yaxis_title="Predicted Consumption",
+        template="plotly_white"
+    )
     st.plotly_chart(rf_plot, use_container_width=True)
 
     # Forecast Comparison
@@ -644,14 +643,15 @@ elif page == "Future Energy Forecast":
 
     # Backtesting
     st.subheader("🧪 Backtesting: Prophet & Random Forest Accuracy")
+
     min_year = int(df_forecast["year"].min())
     max_year = int(df_forecast["year"].max())
 
     split_year = st.slider(
         "📆 Select Last Training Year:",
-        min_value=min_year,
+        min_value=1965,
         max_value=max_year - future_years,
-        value=min_year
+        value=2015
     )
 
     test_years = list(range(split_year + 1, split_year + future_years + 1))
@@ -664,31 +664,16 @@ elif page == "Future Energy Forecast":
     else:
         prophet_data = df_train.rename(columns={"year": "ds", selected_source: "y"})
         prophet_data["ds"] = pd.to_datetime(prophet_data["ds"], format="%Y")
-        test_model = Prophet(yearly_seasonality=True, changepoint_prior_scale=0.5, seasonality_mode='multiplicative')
+        test_model = Prophet(yearly_seasonality=True)
         test_model.fit(prophet_data)
         future_test = test_model.make_future_dataframe(periods=future_years, freq="Y")
         forecast_test = test_model.predict(future_test)
         prophet_preds = forecast_test[["ds", "yhat"]].tail(future_years)
         prophet_preds["year"] = prophet_preds["ds"].dt.year
 
-        df_train['year_squared'] = df_train['year'] ** 2
-        df_train['year_cubed'] = df_train['year'] ** 3
-        df_train['year_log'] = np.log1p(df_train['year'])
-
-        scaler_bt = MinMaxScaler()
-        y_train_scaled = scaler_bt.fit_transform(df_train[[selected_source]]).flatten()
-
-        rf_bt = RandomForestRegressor(n_estimators=500, max_depth=12, min_samples_split=3, random_state=42)
-        rf_bt.fit(df_train[['year', 'year_squared', 'year_cubed', 'year_log']], y_train_scaled)
-
-        future_rf_test = pd.DataFrame({
-            'year': test_years,
-            'year_squared': [y**2 for y in test_years],
-            'year_cubed': [y**3 for y in test_years],
-            'year_log': [np.log1p(y) for y in test_years]
-        })
-        rf_preds_scaled = rf_bt.predict(future_rf_test)
-        rf_preds = scaler_bt.inverse_transform(rf_preds_scaled.reshape(-1, 1)).flatten()
+        rf = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf.fit(df_train[["year"]], df_train[selected_source])
+        rf_preds = rf.predict(pd.DataFrame({"year": test_years}))
 
         df_compare = pd.DataFrame({
             "Year": test_years,
@@ -705,13 +690,21 @@ elif page == "Future Energy Forecast":
         st.markdown(f"🌲 **Random Forest RMSE:** {rmse_rf:.2f}")
 
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Actual"], mode="lines+markers", name="Actual"))
-        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Prophet_Prediction"], mode="lines+markers", name="Prophet"))
-        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["RF_Prediction"], mode="lines+markers", name="Random Forest"))
-        fig.update_layout(title="📊 Actual vs Predicted Energy Consumption", xaxis_title="Year", yaxis_title="Energy Consumption", template="plotly_white")
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Actual"],
+                                 mode="lines+markers", name="Actual"))
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Prophet_Prediction"],
+                                 mode="lines+markers", name="Prophet"))
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["RF_Prediction"],
+                                 mode="lines+markers", name="Random Forest"))
+        fig.update_layout(
+            title="📊 Actual vs Predicted Energy Consumption",
+            xaxis_title="Year",
+            yaxis_title="Energy Consumption",
+            template="plotly_white"
+        )
         st.plotly_chart(fig)
 
+        # 💡 Insight Section
         st.subheader("💡 Forecasting Insights")
         stronger = "Prophet" if rmse_prophet < rmse_rf else "Random Forest"
         st.success(f"🔍 Based on RMSE, the **{stronger}** model performed better in this backtesting scenario.")
-
