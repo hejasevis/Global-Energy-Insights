@@ -562,84 +562,84 @@ elif page == "Country Energy Mix":
         st.warning("Renewable/non-renewable data not sufficient to calculate ratio.")
 
 
-# Streamlit Forecasting Page (Final Revise with Real Features)
+# 🔮 Future Energy Forecast
 elif page == "Future Energy Forecast":
     st.title("🔮 Future Energy Forecast with Machine Learning")
     st.info("""
-    This module uses historical energy data to forecast future consumption with Prophet and Random Forest models.
-    Random Forest now uses multiple explanatory variables to capture energy trends more accurately.
+    This module forecasts future energy consumption for a specific energy type and country using Prophet and Random Forest.
+    Select an energy type (e.g., solar, wind) and a country, then compare model performance for upcoming years.
     """)
 
-    # Clean & prep data
-    useful_cols = [
-        "country", "year", "population", "gdp", "coal_production",
-        "gas_production", "oil_production", "primary_energy_consumption"
-    ]
-    df_ready = df[useful_cols].dropna()
-    countries = sorted(df_ready["country"].unique())
+    # Select energy columns
+    energy_cols = [col for col in df.columns if col.endswith("_consumption")]
+    df_forecast = df[["country", "year"] + energy_cols].dropna()
+    countries = sorted(df_forecast["country"].unique())
 
     selected_country = st.selectbox("🌍 Select a Country:", countries)
+    selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
     future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
 
-    country_data = df_ready[df_ready["country"] == selected_country].copy()
+    # Filter data for selected country and energy type
+    country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
 
     if country_data.empty or len(country_data) < 5:
-        st.warning("⚠️ Not enough valid data points for selected country.")
+        st.warning("⚠️ Not enough valid data points for selected country and energy type.")
         st.stop()
 
     ### --- PROPHET --- ###
     st.subheader("📈 Prophet Forecast")
-    prophet_df = country_data.rename(columns={"year": "ds", "primary_energy_consumption": "y"})
+    prophet_df = country_data.rename(columns={"year": "ds", selected_source: "y"})
     prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
+
     prophet_model = Prophet(yearly_seasonality=True)
     prophet_model.fit(prophet_df)
 
     future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y")
     forecast = prophet_model.predict(future_df)
+
     st.plotly_chart(plot_plotly(prophet_model, forecast))
 
     ### --- RANDOM FOREST --- ###
-    st.subheader("🌲 Random Forest Forecast (Enhanced)")
-    features = ["year", "population", "gdp", "coal_production", "gas_production", "oil_production"]
-    X = country_data[features]
-    y = country_data["primary_energy_consumption"]
+    st.subheader("🌲 Random Forest Forecast")
+    rf_df = country_data.copy()
+    rf_df["year_scaled"] = rf_df["year"] - rf_df["year"].min()
+    rf_df["year_squared"] = rf_df["year_scaled"] ** 2
+    rf_df["year_cubed"] = rf_df["year_scaled"] ** 3
 
-    rf_model = RandomForestRegressor(n_estimators=200, max_depth=8, random_state=42)
-    rf_model.fit(X, y)
+    X_rf = rf_df[["year_scaled", "year_squared", "year_cubed"]]
+    y_rf = rf_df[selected_source]
 
-    # Generate future input features by extrapolation
-    last_row = country_data[features].iloc[-1].copy()
-    future_rows = []
-    for i in range(1, future_years + 1):
-        new_row = last_row.copy()
-        new_row["year"] += i
-        # Assume a small annual increase for simulation purposes
-        for col in ["population", "gdp", "coal_production", "gas_production", "oil_production"]:
-            new_row[col] *= 1.01  # 1% yearly growth
-        future_rows.append(new_row)
+    rf_model = RandomForestRegressor(n_estimators=200, max_depth=6, random_state=42)
+    rf_model.fit(X_rf, y_rf)
 
-    future_df_rf = pd.DataFrame(future_rows)
-    predictions_rf = rf_model.predict(future_df_rf)
+    last_year = rf_df["year"].max()
+    future_years_rf = list(range(last_year + 1, last_year + future_years + 1))
+    future_scaled = np.array(future_years_rf) - rf_df["year"].min()
+    future_features = pd.DataFrame({
+        "year_scaled": future_scaled,
+        "year_squared": future_scaled ** 2,
+        "year_cubed": future_scaled ** 3
+    })
+    predictions_rf = rf_model.predict(future_features)
 
     rf_plot = go.Figure()
     rf_plot.add_trace(go.Scatter(
-        x=future_df_rf["year"],
+        x=future_years_rf,
         y=predictions_rf,
         mode="lines+markers",
         name="RF Prediction",
         line=dict(color="green")
     ))
     rf_plot.update_layout(
-        title=f"Random Forest Forecast: {selected_country}",
+        title=f"Random Forest Forecast: {selected_country} – {selected_source.replace('_consumption','').title()}",
         xaxis_title="Year",
-        yaxis_title="Predicted Energy Consumption",
+        yaxis_title="Predicted Consumption",
         template="plotly_white"
     )
     st.plotly_chart(rf_plot, use_container_width=True)
 
     ### --- COMPARISON --- ###
     st.subheader("🔍 Prophet vs Random Forest Forecast Comparison")
-    future_years_rf = future_df_rf["year"].tolist()
     forecast_display = forecast[["ds", "yhat"]].tail(future_years).copy()
     forecast_display["Year"] = forecast_display["ds"].dt.year
 
@@ -652,5 +652,4 @@ elif page == "Future Energy Forecast":
 
     ### --- INSIGHT --- ###
     st.subheader("💡 Forecasting Insights")
-    st.markdown("This improved model setup uses real-world production and economic factors for Random Forest, leading to much more meaningful and dynamic forecasts. Compare both models' trends for decision-making.")
-
+    st.markdown("This forecast is based solely on historical values of the selected energy type, making it ideal for tracking energy-specific trends and planning targeted strategies.")
