@@ -45,23 +45,23 @@ with st.sidebar:
         ],
         icons=["house", "globe", "bar-chart-line", "graph-up-arrow", "pie-chart", "stars"],
         default_index=0,
+
         styles={
-            "container": {"padding": "0!important", "background-color": "#111111"},
+            "container": {"padding": "0!important", "background-color": "#f9f9f9"},
             "nav-link": {
                 "font-size": "16px",
                 "text-align": "left",
                 "margin": "5px",
-                "--hover-color": "#31333F",
-            },
+                "--hover-color": "#e0e0e0",
+        },
             "nav-link-selected": {
                 "background-color": "#5e60ce",
                 "color": "white",
                 "font-weight": "bold",
-                "border-radius": "8px",
-            },
-            "icon": {"color": "#ffffff"},
-        }
-    )
+            "border-radius": "8px",
+        },
+           "icon": {"color": "#000000"},
+    }
 
 # Load dataset
 @st.cache_data
