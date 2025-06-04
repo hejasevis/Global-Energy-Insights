@@ -676,8 +676,8 @@ bt_results = pd.DataFrame({
 
 rmse_prophet = np.sqrt(mean_squared_error(bt_results["Actual"], bt_results["Prophet"]))
 rmse_xgb = np.sqrt(mean_squared_error(bt_results["Actual"], bt_results["XGBoost"]))
-mape_prophet = mean_absolute_percentage_error(bt_results["Actual"], bt_results["Prophet"])) * 100
-mape_xgb = mean_absolute_percentage_error(bt_results["Actual"], bt_results["XGBoost"])) * 100
+mape_prophet = mean_absolute_percentage_error(bt_results["Actual"], bt_results["Prophet"]) * 100
+mape_xgb = mean_absolute_percentage_error(bt_results["Actual"], bt_results["XGBoost"]) * 100
 
 st.dataframe(bt_results)
 st.markdown(f"📉 **Prophet RMSE:** {rmse_prophet:.2f} | MAPE: {mape_prophet:.2f}%")
