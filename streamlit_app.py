@@ -1,37 +1,37 @@
-# 🚀 Core Libraries
+# Core Libraries
 import streamlit as st
 import pandas as pd
 import numpy as np
 
-# 📊 Visualization
+# Visualization
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# 🔎 Data Processing & Machine Learning
+# Data Processing & Machine Learning
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# 📌 Association Rule Mining
+# Association Rule Mining
 from mlxtend.frequent_patterns import apriori, association_rules
 
-# ⏳ Time Series Forecasting
+# Time Series Forecasting
 from prophet import Prophet
 from prophet.plot import plot_plotly
 
-# 🖼 Image Processing (optional)
+# Image Processing
 from PIL import Image
 
-# 🌐 Streamlit Option Menu
+# Streamlit Option Menu
 from streamlit_option_menu import option_menu
 
-# ⚙️ Page Configuration
+# Page Configuration
 st.set_page_config(layout="wide")
 
-# 🌞 Apply Light Theme Styling Fix
+# Apply Light Theme
 st.markdown(
     """
     <style>
@@ -562,7 +562,7 @@ elif page == "Country Energy Mix":
         st.warning("Renewable/non-renewable data not sufficient to calculate ratio.")
 
 
-# 🔮 Future Energy Forecast (Fully Optimized)
+# 🔮 Future Energy Forecast (Scaled & Optimized)
 elif page == "Future Energy Forecast":
 
     st.title("🔮 Future Energy Forecast with Machine Learning")
@@ -573,7 +573,7 @@ elif page == "Future Energy Forecast":
 
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
     df_forecast = df[["country", "year"] + energy_cols].dropna()
-    df_forecast = df_forecast[df_forecast["year"] >= 1965]  # Lower year limit adjusted to 1965
+    df_forecast = df_forecast[df_forecast["year"] >= 1965]
     countries = sorted(df_forecast["country"].unique())
 
     selected_country = st.selectbox("🌍 Select a Country:", countries)
@@ -599,19 +599,20 @@ elif page == "Future Energy Forecast":
 
     st.plotly_chart(plot_plotly(prophet_model, forecast))
 
-    # Random Forest Forecast (Advanced)
-    st.subheader("🌲 Random Forest Forecast (Advanced)")
+    # Random Forest Forecast (With Scaling)
+    st.subheader("🌲 Random Forest Forecast (With Scaling)")
     rf_df = country_data.copy()
 
-    # Feature engineering
+    scaler = MinMaxScaler()
+    y_scaled = scaler.fit_transform(rf_df[[selected_source]]).flatten()
+
     rf_df['year_squared'] = rf_df['year'] ** 2
     rf_df['year_cubed'] = rf_df['year'] ** 3
     rf_df['year_log'] = np.log1p(rf_df['year'])
     X = rf_df[['year', 'year_squared', 'year_cubed', 'year_log']]
-    y = rf_df[selected_source]
 
     rf_model = RandomForestRegressor(n_estimators=500, max_depth=12, min_samples_split=3, random_state=42)
-    rf_model.fit(X, y)
+    rf_model.fit(X, y_scaled)
 
     future_years_rf = list(range(rf_df["year"].max() + 1, rf_df["year"].max() + future_years + 1))
     future_df_rf = pd.DataFrame({
@@ -621,7 +622,8 @@ elif page == "Future Energy Forecast":
         'year_log': [np.log1p(y) for y in future_years_rf]
     })
 
-    predictions_rf = rf_model.predict(future_df_rf)
+    predictions_rf_scaled = rf_model.predict(future_df_rf)
+    predictions_rf = scaler.inverse_transform(predictions_rf_scaled.reshape(-1, 1)).flatten()
 
     rf_plot = go.Figure()
     rf_plot.add_trace(go.Scatter(x=future_years_rf, y=predictions_rf, mode="lines+markers", name="RF Prediction", line=dict(color="green")))
@@ -672,8 +674,12 @@ elif page == "Future Energy Forecast":
         df_train['year_squared'] = df_train['year'] ** 2
         df_train['year_cubed'] = df_train['year'] ** 3
         df_train['year_log'] = np.log1p(df_train['year'])
-        rf = RandomForestRegressor(n_estimators=500, max_depth=12, min_samples_split=3, random_state=42)
-        rf.fit(df_train[['year', 'year_squared', 'year_cubed', 'year_log']], df_train[selected_source])
+
+        scaler_bt = MinMaxScaler()
+        y_train_scaled = scaler_bt.fit_transform(df_train[[selected_source]]).flatten()
+
+        rf_bt = RandomForestRegressor(n_estimators=500, max_depth=12, min_samples_split=3, random_state=42)
+        rf_bt.fit(df_train[['year', 'year_squared', 'year_cubed', 'year_log']], y_train_scaled)
 
         future_rf_test = pd.DataFrame({
             'year': test_years,
@@ -681,7 +687,8 @@ elif page == "Future Energy Forecast":
             'year_cubed': [y**3 for y in test_years],
             'year_log': [np.log1p(y) for y in test_years]
         })
-        rf_preds = rf.predict(future_rf_test)
+        rf_preds_scaled = rf_bt.predict(future_rf_test)
+        rf_preds = scaler_bt.inverse_transform(rf_preds_scaled.reshape(-1, 1)).flatten()
 
         df_compare = pd.DataFrame({
             "Year": test_years,
