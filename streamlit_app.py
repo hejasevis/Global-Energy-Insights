@@ -564,334 +564,147 @@ elif page == "Country Energy Mix":
 
 # 🔮 Future Energy Forecast
 elif page == "Future Energy Forecast":
-    import streamlit as st
-    import pandas as pd
-    from prophet import Prophet
-    from prophet.plot import plot_plotly, plot_components_plotly # For Prophet's native Plotly plots
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.metrics import mean_squared_error
-    import numpy as np
-    import plotly.graph_objects as go
 
+    # 📌 Title & Info Box
     st.title("🔮 Future Energy Forecast with Machine Learning")
     st.info("""
-    This module compares two machine learning models – **Prophet** and **Random Forest** – to forecast future energy consumption based on historical data.
+    This module compares two machine learning models – **Prophet** and **Random Forest** – to forecast future energy consumption based on historical data.  
     Select a country and energy type, adjust prediction length, and validate model accuracy using backtesting and insights.
     """)
 
-    # 📌 Load data (assuming df is already loaded globally in your Streamlit app)
-    # If not, you'll need to load it here:
-    # df = pd.read_csv("owid-energy-data.csv")
-
     # 📌 Selection and data prep
-    energy_cols = sorted([col for col in df.columns if col.endswith("_consumption") and df[col].dtype != 'object'])
-    
-    if not energy_cols:
-        st.error("No energy consumption columns found in the dataset.")
+    energy_cols = [col for col in df.columns if col.endswith("_consumption")]
+    df_forecast = df[["country", "year"] + energy_cols].dropna()
+    countries = sorted(df_forecast["country"].unique())
+
+    selected_country = st.selectbox("🌍 Select a Country:", countries)
+    selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
+    future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
+
+    # Prophet Forecast
+    st.subheader("📈 Prophet Forecast")
+    country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
+
+    if country_data.empty or len(country_data) < 5:
+        st.warning("⚠️ Not enough valid data points for selected country and energy type.")
         st.stop()
 
-    countries = sorted(df["country"].unique())
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        selected_country = st.selectbox("🌍 Select a Country:", countries, index=countries.index("World") if "World" in countries else 0)
-    with col2:
-        selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols, index=energy_cols.index("primary_energy_consumption") if "primary_energy_consumption" in energy_cols else 0)
-    with col3:
-        future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
-
-    # Prepare data: Select specific country and energy source first, then drop NaNs.
-    # This is more robust than dropping NaNs from all energy_cols at once.
-    country_data = df[df["country"] == selected_country][["year", selected_source]].copy()
-    country_data.dropna(subset=[selected_source], inplace=True)
-    country_data["year"] = pd.to_numeric(country_data["year"]) # Ensure year is numeric
-    country_data = country_data.sort_values(by="year")
-
-
-    if country_data.empty or len(country_data) < 5: # Prophet requires at least 2 data points, more for seasonality.
-        st.warning(f"⚠️ Not enough valid data points for {selected_country} and {selected_source.replace('_consumption','').title()} (found {len(country_data)}). Need at least 5 data points for reliable forecasting.")
-        st.stop()
-
-    # --- Prophet Forecast ---
-    st.subheader(f"📈 Prophet Forecast for {selected_source.replace('_consumption','').title()}")
-    
     prophet_df = country_data.rename(columns={"year": "ds", selected_source: "y"})
-    # Ensure 'ds' is datetime. Prophet expects YYYY-MM-DD. We'll use Jan 1st for yearly data.
-    prophet_df["ds"] = pd.to_datetime(prophet_df["ds"].astype(str) + '-01-01')
+    prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
 
-    try:
-        prophet_model = Prophet(yearly_seasonality=True, daily_seasonality=False, weekly_seasonality=False)
-        # Add regressors if you have relevant external data (e.g., GDP, population for this country)
-        # prophet_model.add_regressor('gdp') # Example
-        prophet_model.fit(prophet_df)
+    prophet_model = Prophet(yearly_seasonality=True)
+    prophet_model.fit(prophet_df)
 
-        future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y") # 'Y' for yearly frequency
-        forecast = prophet_model.predict(future_df)
+    future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y")
+    forecast = prophet_model.predict(future_df)
 
-        fig_prophet_forecast = plot_plotly(prophet_model, forecast)
-        fig_prophet_forecast.update_layout(
-            title=f"Prophet Forecast: {selected_country} – {selected_source.replace('_consumption','').title()}",
-            xaxis_title="Year",
-            yaxis_title="Predicted Consumption",
-            template="plotly_white"
-        )
-        st.plotly_chart(fig_prophet_forecast, use_container_width=True)
+    st.plotly_chart(plot_plotly(prophet_model, forecast))
 
-        show_components = st.checkbox("Show Prophet forecast components", value=False)
-        if show_components:
-            fig_components = plot_components_plotly(prophet_model, forecast)
-            st.plotly_chart(fig_components, use_container_width=True)
-
-    except Exception as e:
-        st.error(f"An error occurred during Prophet forecasting: {e}")
-        st.stop()
-
-    # --- Random Forest Forecast ---
-    # Note: Random Forest is not inherently a time series model.
-    # Using only 'year' as a feature is a very simple approach.
-    # For better RF forecasts, consider feature engineering (lags, rolling means, etc.).
-    st.subheader(f"🌲 Random Forest Forecast for {selected_source.replace('_consumption','').title()}")
-    
+    # Random Forest Forecast
+    st.subheader("🌲 Random Forest Forecast")
     rf_df = country_data.copy()
     X = rf_df[["year"]]
     y = rf_df[selected_source]
 
-    if len(rf_df) < 2: # Random Forest needs at least some data to train
-        st.warning(f"⚠️ Not enough data points for Random Forest model for {selected_country} and {selected_source.replace('_consumption','').title()} after filtering (found {len(rf_df)}).")
-    else:
-        try:
-            rf_model = RandomForestRegressor(n_estimators=100, random_state=42, min_samples_split=2, min_samples_leaf=1) # Basic hyperparams
-            rf_model.fit(X, y)
+    rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_model.fit(X, y)
 
-            current_max_year = X["year"].max()
-            future_years_rf_series = pd.Series(range(current_max_year + 1, current_max_year + future_years + 1), name="year")
-            future_df_rf = pd.DataFrame(future_years_rf_series)
-            predictions_rf = rf_model.predict(future_df_rf)
+    future_years_rf = list(range(X["year"].max() + 1, X["year"].max() + future_years + 1))
+    future_df_rf = pd.DataFrame({"year": future_years_rf})
+    predictions_rf = rf_model.predict(future_df_rf)
 
-            # Combine historical and forecasted data for plotting
-            plot_df_rf = pd.DataFrame({
-                'Year': rf_df['year'],
-                'Actual Consumption': rf_df[selected_source]
-            })
-            forecast_plot_df_rf = pd.DataFrame({
-                'Year': future_years_rf_series,
-                'RF Prediction': predictions_rf
-            })
+    rf_plot = go.Figure()
+    rf_plot.add_trace(go.Scatter(
+        x=future_years_rf,
+        y=predictions_rf,
+        mode="lines+markers",
+        name="RF Prediction",
+        line=dict(color="green")
+    ))
+    rf_plot.update_layout(
+        title=f"Random Forest Forecast: {selected_country} – {selected_source.replace('_consumption','').title()}",
+        xaxis_title="Year",
+        yaxis_title="Predicted Consumption",
+        template="plotly_white"
+    )
+    st.plotly_chart(rf_plot, use_container_width=True)
 
-            rf_plot = go.Figure()
-            rf_plot.add_trace(go.Scatter(
-                x=plot_df_rf['Year'],
-                y=plot_df_rf['Actual Consumption'],
-                mode="lines+markers",
-                name="Historical Data",
-                line=dict(color="blue")
-            ))
-            rf_plot.add_trace(go.Scatter(
-                x=forecast_plot_df_rf['Year'],
-                y=forecast_plot_df_rf['RF Prediction'],
-                mode="lines+markers",
-                name="RF Prediction",
-                line=dict(color="green")
-            ))
-            rf_plot.update_layout(
-                title=f"Random Forest Forecast: {selected_country} – {selected_source.replace('_consumption','').title()}",
-                xaxis_title="Year",
-                yaxis_title="Consumption",
-                template="plotly_white"
-            )
-            st.plotly_chart(rf_plot, use_container_width=True)
-        except Exception as e:
-            st.error(f"An error occurred during Random Forest forecasting: {e}")
-
-
-    # --- Forecast Comparison Table ---
+    # Forecast Comparison
     st.subheader("🔍 Prophet vs Random Forest Forecast Comparison")
-    # Ensure forecast and predictions_rf are available
-    if 'forecast' in locals() and 'predictions_rf' in locals() and 'future_years_rf_series' in locals():
-        # Prophet forecast extraction
-        prophet_forecast_values = forecast[['ds', 'yhat']].tail(future_years).copy()
-        prophet_forecast_values["Year"] = prophet_forecast_values["ds"].dt.year
-        
-        # Align years for comparison. Prophet's future_df might have slightly different end dates
-        # if freq='Y' aligns to year-end, while RF is just incrementing year numbers.
-        # We will use the RF years as the common base for the comparison table.
-        
-        comparison_df = pd.DataFrame({"Year": future_years_rf_series.values})
-        
-        # Merge Prophet predictions
-        # Need to align prophet output years with future_years_rf_series
-        prophet_comparison_data = prophet_forecast_values[prophet_forecast_values['Year'].isin(future_years_rf_series)]
-        
-        # Handle cases where Prophet might not have produced the exact number of future years
-        # or years don't perfectly align after yearly conversion.
-        # We can create a temporary mapping from Prophet's 'Year' to the RF 'Year' sequence.
-        
-        prophet_preds_for_table = []
-        rf_preds_for_table = []
+    forecast_display = forecast[["ds", "yhat"]].tail(future_years).copy()
+    forecast_display["Year"] = forecast_display["ds"].dt.year
 
-        # Get the last 'future_years' from Prophet that align with yearly frequency.
-        # Prophet's 'ds' is the start of the year when freq='Y' is used for make_future_dataframe
-        # So ds.dt.year should match.
-        
-        prophet_filtered_preds = forecast[forecast['ds'] >= pd.to_datetime(str(country_data['year'].max() + 1) + '-01-01')][['ds', 'yhat']].head(future_years)
-        prophet_filtered_preds['Year'] = prophet_filtered_preds['ds'].dt.year
-        
-        comparison_df = pd.DataFrame({
-            "Year": future_years_rf_series.values,
-            "Prophet_Prediction": prophet_filtered_preds["yhat"].values if len(prophet_filtered_preds) == future_years else [np.nan]*future_years, # ensure same length
-            "RF_Prediction": predictions_rf
-        })
-        st.dataframe(comparison_df.style.format({"Prophet_Prediction": "{:.2f}", "RF_Prediction": "{:.2f}"}))
-    else:
-        st.warning("Could not display forecast comparison table as one or both models did not produce predictions.")
+    comparison_df = pd.DataFrame({
+        "Year": future_years_rf,
+        "Prophet_Prediction": forecast_display["yhat"].values,
+        "RF_Prediction": predictions_rf
+    })
+    st.dataframe(comparison_df)
 
-
-    # --- Backtesting ---
+    # Backtesting
     st.subheader("🧪 Backtesting: Prophet & Random Forest Accuracy")
 
-    min_year_data = int(country_data["year"].min())
-    max_year_data = int(country_data["year"].max())
-    
-    # Ensure split_year allows for at least 'future_years' for testing and some data for training
-    # Min value for slider: min_year_data + (some training period, e.g., 3-5 years)
-    # Max value for slider: max_year_data - future_years
-    
-    if (max_year_data - future_years) < (min_year_data + 4) : # Need at least 1 year for training and `future_years` for testing
-         st.warning(f"Not enough historical data for backtesting with {future_years} prediction years. Minimum {future_years + 5} years of data required for this country and energy source.")
+    min_year = int(df_forecast["year"].min())
+    max_year = int(df_forecast["year"].max())
+
+    split_year = st.slider(
+        "📆 Select Last Training Year:",
+        min_value=min_year + 5,
+        max_value=max_year - future_years,
+        value=2015
+    )
+
+    test_years = list(range(split_year + 1, split_year + future_years + 1))
+    df_test = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
+    df_train = df_test[df_test["year"] <= split_year]
+    df_test_actual = df_test[df_test["year"].isin(test_years)]
+
+    if len(df_test_actual) < future_years:
+        st.warning("⚠️ Not enough actual data points for selected test period.")
     else:
-        split_year = st.slider(
-            "📆 Select Last Training Year (for Backtesting):",
-            min_value=min_year_data + 4, # Minimum 5 years of training data
-            max_value=max_year_data - future_years,
-            value=max(min_year_data + 4, max_year_data - future_years - 5) # Default to a reasonable value
+        prophet_data = df_train.rename(columns={"year": "ds", selected_source: "y"})
+        prophet_data["ds"] = pd.to_datetime(prophet_data["ds"], format="%Y")
+        test_model = Prophet(yearly_seasonality=True)
+        test_model.fit(prophet_data)
+        future_test = test_model.make_future_dataframe(periods=future_years, freq="Y")
+        forecast_test = test_model.predict(future_test)
+        prophet_preds = forecast_test[["ds", "yhat"]].tail(future_years)
+        prophet_preds["year"] = prophet_preds["ds"].dt.year
+
+        rf = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf.fit(df_train[["year"]], df_train[selected_source])
+        rf_preds = rf.predict(pd.DataFrame({"year": test_years}))
+
+        df_compare = pd.DataFrame({
+            "Year": test_years,
+            "Actual": df_test_actual[selected_source].values,
+            "Prophet_Prediction": prophet_preds["yhat"].values,
+            "RF_Prediction": rf_preds
+        })
+
+        rmse_prophet = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["Prophet_Prediction"]))
+        rmse_rf = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["RF_Prediction"]))
+
+        st.dataframe(df_compare)
+        st.markdown(f"📉 **Prophet RMSE:** {rmse_prophet:.2f}")
+        st.markdown(f"🌲 **Random Forest RMSE:** {rmse_rf:.2f}")
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Actual"],
+                                 mode="lines+markers", name="Actual"))
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Prophet_Prediction"],
+                                 mode="lines+markers", name="Prophet"))
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["RF_Prediction"],
+                                 mode="lines+markers", name="Random Forest"))
+        fig.update_layout(
+            title="📊 Actual vs Predicted Energy Consumption",
+            xaxis_title="Year",
+            yaxis_title="Energy Consumption",
+            template="plotly_white"
         )
+        st.plotly_chart(fig)
 
-        df_train_bt = country_data[country_data["year"] <= split_year]
-        # Test data should be the 'future_years' immediately following the split_year
-        df_test_actual_bt = country_data[(country_data["year"] > split_year) & (country_data["year"] <= split_year + future_years)]
-
-        if len(df_test_actual_bt) < future_years:
-            st.warning(f"⚠️ Not enough actual data points for the selected backtesting period (need {future_years} years, found {len(df_test_actual_bt)} for years {split_year + 1}-{split_year + future_years}). Adjust slider or prediction length.")
-        elif len(df_train_bt) < 2: # Need at least 2 for Prophet, more for good results
-            st.warning(f"⚠️ Not enough training data points ({len(df_train_bt)}) for backtesting with split year {split_year}.")
-        else:
-            rmse_prophet, rmse_rf = np.nan, np.nan # Initialize with NaN
-            prophet_backtest_preds_values = []
-            rf_backtest_preds_values = []
-
-            # Backtesting Prophet
-            try:
-                prophet_train_df_bt = df_train_bt.rename(columns={"year": "ds", selected_source: "y"})
-                prophet_train_df_bt["ds"] = pd.to_datetime(prophet_train_df_bt["ds"].astype(str) + '-01-01')
-
-                test_model_prophet = Prophet(yearly_seasonality=True, daily_seasonality=False, weekly_seasonality=False)
-                test_model_prophet.fit(prophet_train_df_bt)
-                
-                future_test_prophet = test_model_prophet.make_future_dataframe(periods=future_years, freq="Y")
-                forecast_test_prophet = test_model_prophet.predict(future_test_prophet)
-                
-                # Align prophet predictions with actual test years
-                prophet_backtest_preds = forecast_test_prophet[forecast_test_prophet['ds'].dt.year.isin(df_test_actual_bt['year'])]['yhat']
-                # Ensure the length matches df_test_actual_bt for RMSE calculation
-                prophet_backtest_preds_values = prophet_backtest_preds.head(len(df_test_actual_bt)).values
-
-
-                if len(prophet_backtest_preds_values) == len(df_test_actual_bt):
-                     rmse_prophet = np.sqrt(mean_squared_error(df_test_actual_bt[selected_source], prophet_backtest_preds_values))
-                else:
-                    st.warning("Prophet backtest prediction length mismatch.")
-
-
-            except Exception as e:
-                st.warning(f"Error during Prophet backtesting: {e}")
-
-            # Backtesting Random Forest
-            try:
-                X_train_bt = df_train_bt[["year"]]
-                y_train_bt = df_train_bt[selected_source]
-                X_test_bt = df_test_actual_bt[["year"]]
-
-                if not X_train_bt.empty and not y_train_bt.empty:
-                    test_model_rf = RandomForestRegressor(n_estimators=100, random_state=42, min_samples_split=2, min_samples_leaf=1)
-                    test_model_rf.fit(X_train_bt, y_train_bt)
-                    rf_backtest_preds_values = test_model_rf.predict(X_test_bt)
-                    
-                    if len(rf_backtest_preds_values) == len(df_test_actual_bt):
-                        rmse_rf = np.sqrt(mean_squared_error(df_test_actual_bt[selected_source], rf_backtest_preds_values))
-                    else:
-                        st.warning("Random Forest backtest prediction length mismatch.")
-
-                else:
-                    st.warning("Not enough data for Random Forest backtesting after split.")
-            except Exception as e:
-                st.warning(f"Error during Random Forest backtesting: {e}")
-
-            # Display Backtesting Results
-            df_compare_bt = pd.DataFrame({
-                "Year": df_test_actual_bt["year"].values,
-                "Actual": df_test_actual_bt[selected_source].values,
-            })
-            if len(prophet_backtest_preds_values) == len(df_test_actual_bt):
-                 df_compare_bt["Prophet_Prediction_BT"] = prophet_backtest_preds_values
-            else:
-                 df_compare_bt["Prophet_Prediction_BT"] = np.nan
-
-            if len(rf_backtest_preds_values) == len(df_test_actual_bt):
-                 df_compare_bt["RF_Prediction_BT"] = rf_backtest_preds_values
-            else:
-                 df_compare_bt["RF_Prediction_BT"] = np.nan
-            
-            st.dataframe(df_compare_bt.style.format({
-                "Actual": "{:.2f}", "Prophet_Prediction_BT": "{:.2f}", "RF_Prediction_BT": "{:.2f}"
-            }))
-            
-            if not np.isnan(rmse_prophet):
-                st.markdown(f"📉 **Prophet Backtesting RMSE:** {rmse_prophet:.2f}")
-            if not np.isnan(rmse_rf):
-                st.markdown(f"🌲 **Random Forest Backtesting RMSE:** {rmse_rf:.2f}")
-
-            # Plot Backtesting
-            fig_bt = go.Figure()
-            fig_bt.add_trace(go.Scatter(x=df_compare_bt["Year"], y=df_compare_bt["Actual"],
-                                     mode="lines+markers", name="Actual"))
-            if "Prophet_Prediction_BT" in df_compare_bt and not df_compare_bt["Prophet_Prediction_BT"].isnull().all():
-                fig_bt.add_trace(go.Scatter(x=df_compare_bt["Year"], y=df_compare_bt["Prophet_Prediction_BT"],
-                                         mode="lines+markers", name="Prophet (Backtest)"))
-            if "RF_Prediction_BT" in df_compare_bt and not df_compare_bt["RF_Prediction_BT"].isnull().all():
-                fig_bt.add_trace(go.Scatter(x=df_compare_bt["Year"], y=df_compare_bt["RF_Prediction_BT"],
-                                         mode="lines+markers", name="Random Forest (Backtest)"))
-            fig_bt.update_layout(
-                title="📊 Backtesting: Actual vs Predicted Energy Consumption",
-                xaxis_title="Year",
-                yaxis_title="Energy Consumption",
-                template="plotly_white"
-            )
-            st.plotly_chart(fig_bt, use_container_width=True)
-
-            # --- Insight Section ---
-            st.subheader("💡 Forecasting Insights")
-            if not np.isnan(rmse_prophet) and not np.isnan(rmse_rf):
-                if rmse_prophet < rmse_rf:
-                    stronger_model = "Prophet"
-                    weaker_model = "Random Forest"
-                    st.success(f"🔍 Based on RMSE, **Prophet ({rmse_prophet:.2f})** performed better than Random Forest ({rmse_rf:.2f}) in this backtesting scenario.")
-                elif rmse_rf < rmse_prophet:
-                    stronger_model = "Random Forest"
-                    weaker_model = "Prophet"
-                    st.success(f"🔍 Based on RMSE, **Random Forest ({rmse_rf:.2f})** performed better than Prophet ({rmse_prophet:.2f}) in this backtesting scenario.")
-                else:
-                    st.info(f"🔍 Both Prophet and Random Forest performed similarly (RMSE: {rmse_prophet:.2f}) in this backtesting scenario.")
-                
-                st.markdown("""
-                **General Considerations:**
-                * **Prophet** is generally well-suited for time series data with trends and seasonality.
-                * **Random Forest**, when used with only 'year' as a feature, acts as a simple regression model. Its performance can often be improved with more sophisticated feature engineering (e.g., lagged values, rolling averages) for time series tasks.
-                * The amount and quality of historical data significantly impact forecast accuracy.
-                * Backtesting on a different period or with different parameters might yield different results.
-                """)
-            elif not np.isnan(rmse_prophet):
-                 st.info("Prophet model backtested. Random Forest backtesting had issues or insufficient data.")
-            elif not np.isnan(rmse_rf):
-                 st.info("Random Forest model backtested. Prophet backtesting had issues or insufficient data.")
-            else:
-                st.warning("Could not determine a stronger model as RMSE values were not available for one or both models from backtesting.")
+        # 💡 Insight Section
+        st.subheader("💡 Forecasting Insights")
+        stronger = "Prophet" if rmse_prophet < rmse_rf else "Random Forest"
+        st.success(f"🔍 Based on RMSE, the **{stronger}** model performed better in this backtesting scenario.")
