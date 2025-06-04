@@ -674,7 +674,7 @@ bt_results = pd.DataFrame({
     "XGBoost": y_pred_bt_xgb
 })
 
-rmse_prophet = np.sqrt(mean_squared_error(bt_results["Actual"], bt_results["Prophet"]))
+rmse_prophet = np.sqrt(mean_squared_error(bt_results["Actual"], bt_results["Prophet"])
 rmse_xgb = np.sqrt(mean_squared_error(bt_results["Actual"], bt_results["XGBoost"]))
 mape_prophet = mean_absolute_percentage_error(bt_results["Actual"], bt_results["Prophet"]) * 100
 mape_xgb = mean_absolute_percentage_error(bt_results["Actual"], bt_results["XGBoost"]) * 100
