@@ -31,6 +31,25 @@ from streamlit_option_menu import option_menu
 # ⚙️ Page Configuration
 st.set_page_config(layout="wide")
 
+# 🌞 Apply Light Theme Styling Fix
+st.markdown(
+    """
+    <style>
+        body {
+            background-color: white !important;
+            color: black !important;
+        }
+        .main {
+            background-color: white !important;
+        }
+        .css-1d391kg, .css-hxt7ib, .css-1v0mbdj, .css-18e3th9 {
+            background-color: #f9f9f9 !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # 📋 Sidebar Navigation Menu
 with st.sidebar:
     page = option_menu(
@@ -45,7 +64,6 @@ with st.sidebar:
         ],
         icons=["house", "globe", "bar-chart-line", "graph-up-arrow", "pie-chart", "stars"],
         default_index=0,
-
         styles={
             "container": {"padding": "0!important", "background-color": "#f9f9f9"},
             "nav-link": {
@@ -53,15 +71,16 @@ with st.sidebar:
                 "text-align": "left",
                 "margin": "5px",
                 "--hover-color": "#e0e0e0",
-        },
+            },
             "nav-link-selected": {
                 "background-color": "#5e60ce",
                 "color": "white",
                 "font-weight": "bold",
-            "border-radius": "8px",
-        },
-           "icon": {"color": "#000000"},
-    }
+                "border-radius": "8px",
+            },
+            "icon": {"color": "#000000"},
+        }
+    )
 
 # Load dataset
 @st.cache_data
