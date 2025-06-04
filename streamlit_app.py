@@ -548,8 +548,8 @@ elif page == "Country Energy Mix":
         for _, row in avg_df.iterrows():
             st.markdown(f"- `{row['Energy Source'].replace('_consumption', '').title()}`: **{row['Percentage']}%**")
 
-    # 💚 Additional Indicator: Renewable Ratio
-    st.markdown("### 💚 Renewable Energy Share")
+    # Additional Indicator: Renewable Ratio
+    st.markdown("### Renewable Energy Share")
 
     # Calculate renewable and non-renewable sums
     renew_sum = country_data[renewable_cols].sum().sum() if set(renewable_cols).issubset(country_data.columns) else 0
@@ -574,48 +574,58 @@ elif page == "Future Energy Forecast":
 
     # 📌 Selection and data prep
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
-    df_forecast = df[["country", "year"] + energy_cols].dropna()
+    extra_features = ["population", "gdp"]
+
+    df_forecast = df[["country", "year"] + energy_cols + extra_features].dropna()
     countries = sorted(df_forecast["country"].unique())
 
     selected_country = st.selectbox("🌍 Select a Country:", countries)
     selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
     future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
 
-    # Prophet Forecast
-    st.subheader("📈 Prophet Forecast")
-    country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
+    country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source] + extra_features].dropna()
 
     if country_data.empty or len(country_data) < 5:
         st.warning("⚠️ Not enough valid data points for selected country and energy type.")
         st.stop()
 
+    # Prophet Forecast
+    st.subheader("📈 Prophet Forecast")
     prophet_df = country_data.rename(columns={"year": "ds", selected_source: "y"})
     prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
 
     prophet_model = Prophet(yearly_seasonality=True)
-    prophet_model.fit(prophet_df)
+    for reg in extra_features:
+        prophet_model.add_regressor(reg)
+    prophet_model.fit(prophet_df[["ds", "y"] + extra_features])
 
-    future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y")
-    forecast = prophet_model.predict(future_df)
+    last_known = country_data.iloc[-1]
+    future_data = pd.DataFrame({
+        "year": list(range(int(last_known["year"]) + 1, int(last_known["year"]) + future_years + 1))
+    })
+    growth = {"population": 0.01, "gdp": 0.02}
+    for col in extra_features:
+        base = last_known[col]
+        future_data[col] = [base * (1 + growth[col]) ** i for i in range(1, future_years + 1)]
+    future_data["ds"] = pd.to_datetime(future_data["year"], format="%Y")
 
+    forecast = prophet_model.predict(future_data[["ds"] + extra_features])
     st.plotly_chart(plot_plotly(prophet_model, forecast))
 
     # Random Forest Forecast
     st.subheader("🌲 Random Forest Forecast")
-    rf_df = country_data.copy()
-    X = rf_df[["year"]]
-    y = rf_df[selected_source]
+    X = country_data[["year"] + extra_features]
+    y = country_data[selected_source]
 
     rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
     rf_model.fit(X, y)
 
-    future_years_rf = list(range(X["year"].max() + 1, X["year"].max() + future_years + 1))
-    future_df_rf = pd.DataFrame({"year": future_years_rf})
-    predictions_rf = rf_model.predict(future_df_rf)
+    future_rf = future_data[["year"] + extra_features]
+    predictions_rf = rf_model.predict(future_rf)
 
     rf_plot = go.Figure()
     rf_plot.add_trace(go.Scatter(
-        x=future_years_rf,
+        x=future_data["year"],
         y=predictions_rf,
         mode="lines+markers",
         name="RF Prediction",
@@ -635,7 +645,7 @@ elif page == "Future Energy Forecast":
     forecast_display["Year"] = forecast_display["ds"].dt.year
 
     comparison_df = pd.DataFrame({
-        "Year": future_years_rf,
+        "Year": future_data["year"],
         "Prophet_Prediction": forecast_display["yhat"].values,
         "RF_Prediction": predictions_rf
     })
@@ -643,19 +653,18 @@ elif page == "Future Energy Forecast":
 
     # Backtesting
     st.subheader("🧪 Backtesting: Prophet & Random Forest Accuracy")
-
     min_year = int(df_forecast["year"].min())
     max_year = int(df_forecast["year"].max())
 
     split_year = st.slider(
-        "📆 Select Last Training Year:",
+        "🗖️ Select Last Training Year:",
         min_value=min_year + 5,
         max_value=max_year - future_years,
         value=2015
     )
 
     test_years = list(range(split_year + 1, split_year + future_years + 1))
-    df_test = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
+    df_test = df_forecast[df_forecast["country"] == selected_country][["year", selected_source] + extra_features].dropna()
     df_train = df_test[df_test["year"] <= split_year]
     df_test_actual = df_test[df_test["year"].isin(test_years)]
 
@@ -664,16 +673,26 @@ elif page == "Future Energy Forecast":
     else:
         prophet_data = df_train.rename(columns={"year": "ds", selected_source: "y"})
         prophet_data["ds"] = pd.to_datetime(prophet_data["ds"], format="%Y")
+
         test_model = Prophet(yearly_seasonality=True)
-        test_model.fit(prophet_data)
-        future_test = test_model.make_future_dataframe(periods=future_years, freq="Y")
-        forecast_test = test_model.predict(future_test)
-        prophet_preds = forecast_test[["ds", "yhat"]].tail(future_years)
+        for reg in extra_features:
+            test_model.add_regressor(reg)
+        test_model.fit(prophet_data[["ds", "y"] + extra_features])
+
+        last_row = df_train.iloc[-1]
+        future_bt = pd.DataFrame({"year": test_years})
+        for col in extra_features:
+            base = last_row[col]
+            future_bt[col] = [base * (1 + growth[col]) ** i for i in range(1, future_years + 1)]
+        future_bt["ds"] = pd.to_datetime(future_bt["year"], format="%Y")
+
+        forecast_test = test_model.predict(future_bt[["ds"] + extra_features])
+        prophet_preds = forecast_test[["ds", "yhat"]].copy()
         prophet_preds["year"] = prophet_preds["ds"].dt.year
 
-        rf = RandomForestRegressor(n_estimators=100, random_state=42)
-        rf.fit(df_train[["year"]], df_train[selected_source])
-        rf_preds = rf.predict(pd.DataFrame({"year": test_years}))
+        rf_bt = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf_bt.fit(df_train[["year"] + extra_features], df_train[selected_source])
+        rf_preds = rf_bt.predict(future_bt[["year"] + extra_features])
 
         df_compare = pd.DataFrame({
             "Year": test_years,
