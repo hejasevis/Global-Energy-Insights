@@ -563,6 +563,7 @@ elif page == "Country Energy Mix":
 
 
 # 🔮 Future Energy Forecast
+# 🔮 Future Energy Forecast
 elif page == "Future Energy Forecast":
 
     st.title("🔮 Energy Forecasting & Backtesting")
@@ -593,16 +594,24 @@ elif page == "Future Energy Forecast":
         test = df_filtered[df_filtered["ds"].dt.year > 2015]
 
         # 📈 Prophet Model
-        prophet_model = Prophet()
-        prophet_model.fit(train)
-        future = prophet_model.make_future_dataframe(periods=forecast_years, freq="Y")
-        forecast = prophet_model.predict(future)
-        prophet_merged = forecast[["ds", "yhat"]].merge(test, on="ds", how="inner")
+        try:
+            prophet_model = Prophet()
+            prophet_model.fit(train)
 
-        # Prophet metrikler
-        prophet_rmse = mean_squared_error(prophet_merged["y"], prophet_merged["yhat"], squared=False)
-        prophet_mae = mean_absolute_error(prophet_merged["y"], prophet_merged["yhat"])
-        prophet_r2 = r2_score(prophet_merged["y"], prophet_merged["yhat"])
+            # Tahmin geleceği
+            future = prophet_model.make_future_dataframe(periods=forecast_years, freq="Y")
+            forecast = prophet_model.predict(future)
+
+            # Prophet tahmini ve test setini birleştirip temizle
+            forecast_result = forecast[["ds", "yhat"]].merge(test, on="ds", how="inner").dropna()
+
+            # Prophet metrikler
+            prophet_rmse = mean_squared_error(forecast_result["y"], forecast_result["yhat"], squared=False)
+            prophet_mae = mean_absolute_error(forecast_result["y"], forecast_result["yhat"])
+            prophet_r2 = r2_score(forecast_result["y"], forecast_result["yhat"])
+        except Exception as e:
+            st.error(f"Prophet model failed: {e}")
+            prophet_rmse = prophet_mae = prophet_r2 = None
 
         # 🌲 Random Forest Model
         rf_train = train.copy()
@@ -621,12 +630,13 @@ elif page == "Future Energy Forecast":
 
         # 🔍 Model Performansı
         st.markdown("### 📊 Model Performance Metrics")
-        perf_df = pd.DataFrame({
+        perf_data = {
             "Model": ["Prophet", "Random Forest"],
             "RMSE": [prophet_rmse, rf_rmse],
             "MAE": [prophet_mae, rf_mae],
             "R²": [prophet_r2, rf_r2]
-        })
+        }
+        perf_df = pd.DataFrame(perf_data)
         st.dataframe(perf_df)
 
         # 🔮 Tahmin grafiği
@@ -635,13 +645,16 @@ elif page == "Future Energy Forecast":
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=train["ds"], y=train["y"], mode="lines", name="Train"))
         fig.add_trace(go.Scatter(x=test["ds"], y=test["y"], mode="lines", name="Test"))
-        fig.add_trace(go.Scatter(x=forecast["ds"], y=forecast["yhat"], mode="lines", name="Prophet Forecast"))
+
+        if prophet_rmse is not None:
+            fig.add_trace(go.Scatter(x=forecast["ds"], y=forecast["yhat"], mode="lines", name="Prophet Forecast"))
+
         fig.add_trace(go.Scatter(x=rf_test["ds"], y=rf_preds, mode="lines", name="RF Prediction", line=dict(dash="dot")))
 
         fig.update_layout(
             title=f"{country} - {energy_type.replace('_consumption', '').title()} Forecast",
             xaxis_title="Year",
-            yaxis_title="Energy Consumption (TWh or similar)",
+            yaxis_title="Energy Consumption",
             template="plotly_white",
             height=600
         )
