@@ -563,7 +563,6 @@ elif page == "Country Energy Mix":
 
 
 # 🔮 Future Energy Forecast
-# Streamlit Forecasting Page (Energy Type, Country & Years)
 elif page == "Future Energy Forecast":
     st.title("🔮 Future Energy Forecast with Machine Learning")
     st.info("""
@@ -598,30 +597,35 @@ elif page == "Future Energy Forecast":
     forecast = prophet_model.predict(future_df)
     st.plotly_chart(plot_plotly(prophet_model, forecast))
 
-    ### --- POLYNOMIAL REGRESSION --- ###
-st.subheader("🧮 Polynomial Regression Forecast")
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.linear_model import LinearRegression
-from sklearn.pipeline import make_pipeline
+    ### --- RANDOM FOREST --- ###
+    st.subheader("🌲 Random Forest Forecast")
+    rf_df = country_data.copy()
+    rf_df["year_scaled"] = rf_df["year"] - rf_df["year"].min()
+    rf_df["year_squared"] = rf_df["year_scaled"] ** 2
+    rf_df["year_cubed"] = rf_df["year_scaled"] ** 3
 
-# Prepare features
-years = country_data["year"].values.reshape(-1, 1)
-y = country_data[selected_source].values
+    X_rf = rf_df[["year_scaled", "year_squared", "year_cubed"]]
+    y_rf = rf_df[selected_source]
 
-model_poly = make_pipeline(PolynomialFeatures(degree=3), LinearRegression())
-model_poly.fit(years, y)
+    rf_model = RandomForestRegressor(n_estimators=200, max_depth=6, random_state=42)
+    rf_model.fit(X_rf, y_rf)
 
-future_years_rf = list(range(country_data["year"].max() + 1, country_data["year"].max() + future_years + 1))
-future_years_array = np.array(future_years_rf).reshape(-1, 1)
-predictions_poly = model_poly.predict(future_years_array)
+    last_year = rf_df["year"].max()
+    future_years_rf = list(range(last_year + 1, last_year + future_years + 1))
+    future_scaled = np.array(future_years_rf) - rf_df["year"].min()
+    future_features = pd.DataFrame({
+        "year_scaled": future_scaled,
+        "year_squared": future_scaled ** 2,
+        "year_cubed": future_scaled ** 3
+    })
+    predictions_rf = rf_model.predict(future_features)
 
-# Plot
-poly_plot = go.Figure()
-poly_plot.add_trace(go.Scatter(x=future_years_rf, y=predictions_poly, mode="lines+markers", name="Polynomial Forecast", line=dict(color="purple")))
-poly_plot.update_layout(title="Polynomial Regression Forecast", xaxis_title="Year", yaxis_title="Predicted Consumption", template="plotly_white")
-st.plotly_chart(poly_plot)
+    rf_plot = go.Figure()
+    rf_plot.add_trace(go.Scatter(x=future_years_rf, y=predictions_rf, mode="lines+markers", name="RF Prediction", line=dict(color="green")))
+    rf_plot.update_layout(title="Random Forest Forecast", xaxis_title="Year", yaxis_title="Predicted Consumption", template="plotly_white")
+    st.plotly_chart(rf_plot)
 
-### --- COMPARISON --- ###
+    ### --- COMPARISON --- ###
     st.subheader("🔍 Prophet vs Random Forest Forecast Comparison")
     forecast_display = forecast[["ds", "yhat"]].tail(future_years).copy()
     forecast_display["Year"] = forecast_display["ds"].dt.year
@@ -634,55 +638,62 @@ st.plotly_chart(poly_plot)
     st.dataframe(comparison_df)
 
     ### --- BACKTESTING --- ###
-st.subheader("🧪 Backtesting: Model Accuracy")
+    st.subheader("🧪 Backtesting: Model Accuracy")
+    min_year = int(country_data["year"].min())
+    max_year = int(country_data["year"].max())
+    split_year = st.slider("📆 Select Last Training Year:", min_value=min_year + 5, max_value=max_year - future_years, value=max_year - future_years)
 
-min_year = int(country_data["year"].min())
-max_year = int(country_data["year"].max())
-split_year = st.slider("📆 Select Last Training Year:", min_value=min_year + 5, max_value=max_year - future_years, value=max_year - future_years)
+    test_years = list(range(split_year + 1, split_year + future_years + 1))
+    df_train = country_data[country_data["year"] <= split_year]
+    df_test = country_data[country_data["year"].isin(test_years)]
 
-test_years = list(range(split_year + 1, split_year + future_years + 1))
-df_train = country_data[country_data["year"] <= split_year]
-df_test = country_data[country_data["year"].isin(test_years)]
+    if len(df_test) < future_years:
+        st.warning("⚠️ Not enough data for testing period.")
+    else:
+        # Prophet backtest
+        prophet_bt = df_train.rename(columns={"year": "ds", selected_source: "y"})
+        prophet_bt["ds"] = pd.to_datetime(prophet_bt["ds"], format="%Y")
+        model_prophet = Prophet(yearly_seasonality=True)
+        model_prophet.fit(prophet_bt)
+        future_bt = model_prophet.make_future_dataframe(periods=future_years, freq="Y")
+        forecast_bt = model_prophet.predict(future_bt)
+        prophet_preds = forecast_bt[["ds", "yhat"]].tail(future_years)
+        prophet_preds["year"] = prophet_preds["ds"].dt.year
 
-if len(df_test) < future_years:
-    st.warning("⚠️ Not enough data for testing period.")
-else:
-    # Prophet backtest
-    prophet_bt = df_train.rename(columns={"year": "ds", selected_source: "y"})
-    prophet_bt["ds"] = pd.to_datetime(prophet_bt["ds"], format="%Y")
-    model_prophet = Prophet(yearly_seasonality=True)
-    model_prophet.fit(prophet_bt)
-    future_bt = model_prophet.make_future_dataframe(periods=future_years, freq="Y")
-    forecast_bt = model_prophet.predict(future_bt)
-    prophet_preds = forecast_bt[["ds", "yhat"]].tail(future_years)
-    prophet_preds["year"] = prophet_preds["ds"].dt.year
+        # RF backtest
+        df_train["year_scaled"] = df_train["year"] - df_train["year"].min()
+        df_train["year_squared"] = df_train["year_scaled"] ** 2
+        df_train["year_cubed"] = df_train["year_scaled"] ** 3
 
-    # Polynomial backtest
-    train_years = df_train["year"].values.reshape(-1, 1)
-    train_y = df_train[selected_source].values
-    test_years_array = np.array(test_years).reshape(-1, 1)
-    model_bt = make_pipeline(PolynomialFeatures(degree=3), LinearRegression())
-    model_bt.fit(train_years, train_y)
-    poly_preds = model_bt.predict(test_years_array)
+        rf_back = RandomForestRegressor(n_estimators=200, max_depth=6, random_state=42)
+        rf_back.fit(df_train[["year_scaled", "year_squared", "year_cubed"]], df_train[selected_source])
 
-    df_compare = pd.DataFrame({
-        "Year": test_years,
-        "Actual": df_test[selected_source].values,
-        "Prophet_Prediction": prophet_preds["yhat"].values,
-        "Poly_Prediction": poly_preds
-    })
+        test_scaled = np.array(test_years) - df_train["year"].min()
+        test_features = pd.DataFrame({
+            "year_scaled": test_scaled,
+            "year_squared": test_scaled ** 2,
+            "year_cubed": test_scaled ** 3
+        })
+        rf_preds = rf_back.predict(test_features)
 
-    rmse_prophet = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["Prophet_Prediction"]))
-    rmse_poly = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["Poly_Prediction"]))
+        df_compare = pd.DataFrame({
+            "Year": test_years,
+            "Actual": df_test[selected_source].values,
+            "Prophet_Prediction": prophet_preds["yhat"].values,
+            "RF_Prediction": rf_preds
+        })
 
-    st.dataframe(df_compare)
-    st.markdown(f"📉 **Prophet RMSE:** {rmse_prophet:.2f}")
-    st.markdown(f"🧮 **Polynomial Regression RMSE:** {rmse_poly:.2f}")
+        rmse_prophet = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["Prophet_Prediction"]))
+        rmse_rf = np.sqrt(mean_squared_error(df_compare["Actual"], df_compare["RF_Prediction"]))
 
-    fig = go.Figure()
+        st.dataframe(df_compare)
+        st.markdown(f"📉 **Prophet RMSE:** {rmse_prophet:.2f}")
+        st.markdown(f"🌲 **Random Forest RMSE:** {rmse_rf:.2f}")
+
+        fig = go.Figure()
         fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Actual"], mode="lines+markers", name="Actual"))
         fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Prophet_Prediction"], mode="lines+markers", name="Prophet"))
-        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["Poly_Prediction"], mode="lines+markers", name="Polynomial Regression"))
+        fig.add_trace(go.Scatter(x=df_compare["Year"], y=df_compare["RF_Prediction"], mode="lines+markers", name="Random Forest"))
         fig.update_layout(title="📊 Actual vs Predicted Energy Consumption", xaxis_title="Year", yaxis_title="Energy Consumption", template="plotly_white")
         st.plotly_chart(fig)
 
