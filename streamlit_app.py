@@ -599,26 +599,38 @@ elif page == "Future Energy Forecast":
 
     ### --- RANDOM FOREST --- ###
     st.subheader("🌲 Random Forest Forecast")
-    rf_df = country_data.copy()
+    rf_df = country_data.copy().reset_index(drop=True)
     rf_df["year_scaled"] = rf_df["year"] - rf_df["year"].min()
-    rf_df["year_squared"] = rf_df["year_scaled"] ** 2
-    rf_df["year_cubed"] = rf_df["year_scaled"] ** 3
+    # lag features improve RF performance and avoid constant results
+    rf_df["lag1"] = rf_df[selected_source].shift(1)
+    rf_df["lag2"] = rf_df[selected_source].shift(2)
+    rf_df["lag3"] = rf_df[selected_source].shift(3)
+    rf_df = rf_df.dropna()
 
-    X_rf = rf_df[["year_scaled", "year_squared", "year_cubed"]]
+    X_rf = rf_df[["year_scaled", "lag1", "lag2", "lag3"]]
     y_rf = rf_df[selected_source]
 
     rf_model = RandomForestRegressor(n_estimators=200, max_depth=6, random_state=42)
     rf_model.fit(X_rf, y_rf)
 
-    last_year = rf_df["year"].max()
+    last_year = int(rf_df["year"].max())
     future_years_rf = list(range(last_year + 1, last_year + future_years + 1))
-    future_scaled = np.array(future_years_rf) - rf_df["year"].min()
-    future_features = pd.DataFrame({
-        "year_scaled": future_scaled,
-        "year_squared": future_scaled ** 2,
-        "year_cubed": future_scaled ** 3
-    })
-    predictions_rf = rf_model.predict(future_features)
+    current_year_scaled = rf_df["year_scaled"].iloc[-1]
+
+    # iterative forecasting using lagged predictions
+    history = rf_df[selected_source].tolist()[-3:]
+    predictions_rf = []
+    for _ in future_years_rf:
+        current_year_scaled += 1
+        features = pd.DataFrame({
+            "year_scaled": [current_year_scaled],
+            "lag1": [history[-1]],
+            "lag2": [history[-2]],
+            "lag3": [history[-3]],
+        })
+        pred = rf_model.predict(features)[0]
+        predictions_rf.append(pred)
+        history.append(pred)
 
     rf_plot = go.Figure()
     rf_plot.add_trace(go.Scatter(x=future_years_rf, y=predictions_rf, mode="lines+markers", name="RF Prediction", line=dict(color="green")))
@@ -661,20 +673,20 @@ elif page == "Future Energy Forecast":
         prophet_preds["year"] = prophet_preds["ds"].dt.year
 
         # RF backtest
-        df_train["year_scaled"] = df_train["year"] - df_train["year"].min()
-        df_train["year_squared"] = df_train["year_scaled"] ** 2
-        df_train["year_cubed"] = df_train["year_scaled"] ** 3
+        lagged = country_data.copy()
+        lagged["year_scaled"] = lagged["year"] - lagged["year"].min()
+        lagged["lag1"] = lagged[selected_source].shift(1)
+        lagged["lag2"] = lagged[selected_source].shift(2)
+        lagged["lag3"] = lagged[selected_source].shift(3)
+        lagged = lagged.dropna()
+
+        train_df = lagged[lagged["year"] <= split_year]
+        test_df = lagged[lagged["year"].isin(test_years)]
 
         rf_back = RandomForestRegressor(n_estimators=200, max_depth=6, random_state=42)
-        rf_back.fit(df_train[["year_scaled", "year_squared", "year_cubed"]], df_train[selected_source])
+        rf_back.fit(train_df[["year_scaled", "lag1", "lag2", "lag3"]], train_df[selected_source])
 
-        test_scaled = np.array(test_years) - df_train["year"].min()
-        test_features = pd.DataFrame({
-            "year_scaled": test_scaled,
-            "year_squared": test_scaled ** 2,
-            "year_cubed": test_scaled ** 3
-        })
-        rf_preds = rf_back.predict(test_features)
+        rf_preds = rf_back.predict(test_df[["year_scaled", "lag1", "lag2", "lag3"]])
 
         df_compare = pd.DataFrame({
             "Year": test_years,
