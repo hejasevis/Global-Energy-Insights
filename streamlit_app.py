@@ -669,9 +669,13 @@ elif page == "Future Energy Forecast":
 
     ### --- BACKTESTING --- ###
     st.subheader("🧪 Backtesting: Model Accuracy")
-    min_year = int(country_data["year"].min())
     max_year = int(country_data["year"].max())
-    split_year = st.slider("📆 Select Last Training Year:", min_value=min_year + 5, max_value=max_year - future_years, value=max_year - future_years)
+    split_year = st.slider(
+        "📆 Select Last Training Year:",
+        min_value=1965,
+        max_value=2015,
+        value=min(2015, max_year - future_years),
+    )
 
     test_years = list(range(split_year + 1, split_year + future_years + 1))
     df_train = country_data[country_data["year"] <= split_year]
