@@ -562,7 +562,7 @@ elif page == "Country Energy Mix":
         st.warning("Renewable/non-renewable data not sufficient to calculate ratio.")
 
 
-# 🔮 Future Energy Forecast (Optimized)
+# 🔮 Future Energy Forecast
 elif page == "Future Energy Forecast":
 
     st.title("🔮 Future Energy Forecast with Machine Learning")
@@ -573,7 +573,7 @@ elif page == "Future Energy Forecast":
 
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
     df_forecast = df[["country", "year"] + energy_cols].dropna()
-    df_forecast = df_forecast[df_forecast["year"] >= 1965]  # Lower year limit adjusted to 1965
+    df_forecast = df_forecast[df_forecast["year"] >= 1965]
     countries = sorted(df_forecast["country"].unique())
 
     selected_country = st.selectbox("🌍 Select a Country:", countries)
@@ -591,7 +591,7 @@ elif page == "Future Energy Forecast":
     prophet_df = country_data.rename(columns={"year": "ds", selected_source: "y"})
     prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
 
-    prophet_model = Prophet(yearly_seasonality=True)
+    prophet_model = Prophet(yearly_seasonality=True, changepoint_prior_scale=0.5)
     prophet_model.fit(prophet_df)
 
     future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y")
@@ -599,17 +599,23 @@ elif page == "Future Energy Forecast":
 
     st.plotly_chart(plot_plotly(prophet_model, forecast))
 
-    # Random Forest Forecast (Optimized)
-    st.subheader("🌲 Random Forest Forecast (Optimized)")
+    # Random Forest Forecast (Advanced)
+    st.subheader("🌲 Random Forest Forecast (Advanced)")
     rf_df = country_data.copy()
-    X = rf_df[["year"]]
+    rf_df['year_squared'] = rf_df['year'] ** 2
+    rf_df['year_cubed'] = rf_df['year'] ** 3
+    X = rf_df[['year', 'year_squared', 'year_cubed']]
     y = rf_df[selected_source]
 
-    rf_model = RandomForestRegressor(n_estimators=100, max_depth=None, min_samples_split=5, random_state=42)
+    rf_model = RandomForestRegressor(n_estimators=300, max_depth=8, min_samples_split=4, random_state=42)
     rf_model.fit(X, y)
 
-    future_years_rf = list(range(X["year"].max() + 1, X["year"].max() + future_years + 1))
-    future_df_rf = pd.DataFrame({"year": future_years_rf})
+    future_years_rf = list(range(rf_df["year"].max() + 1, rf_df["year"].max() + future_years + 1))
+    future_df_rf = pd.DataFrame({
+        'year': future_years_rf,
+        'year_squared': [y**2 for y in future_years_rf],
+        'year_cubed': [y**3 for y in future_years_rf]
+    })
     predictions_rf = rf_model.predict(future_df_rf)
 
     rf_plot = go.Figure()
@@ -651,16 +657,23 @@ elif page == "Future Energy Forecast":
     else:
         prophet_data = df_train.rename(columns={"year": "ds", selected_source: "y"})
         prophet_data["ds"] = pd.to_datetime(prophet_data["ds"], format="%Y")
-        test_model = Prophet(yearly_seasonality=True)
+        test_model = Prophet(yearly_seasonality=True, changepoint_prior_scale=0.5)
         test_model.fit(prophet_data)
         future_test = test_model.make_future_dataframe(periods=future_years, freq="Y")
         forecast_test = test_model.predict(future_test)
         prophet_preds = forecast_test[["ds", "yhat"]].tail(future_years)
         prophet_preds["year"] = prophet_preds["ds"].dt.year
 
-        rf = RandomForestRegressor(n_estimators=100, max_depth=None, min_samples_split=5, random_state=42)
-        rf.fit(df_train[["year"]], df_train[selected_source])
-        rf_preds = rf.predict(pd.DataFrame({"year": test_years}))
+        df_train['year_squared'] = df_train['year'] ** 2
+        df_train['year_cubed'] = df_train['year'] ** 3
+        df_test_input = pd.DataFrame({
+            "year": test_years,
+            "year_squared": [y**2 for y in test_years],
+            "year_cubed": [y**3 for y in test_years]
+        })
+        rf = RandomForestRegressor(n_estimators=300, max_depth=8, min_samples_split=4, random_state=42)
+        rf.fit(df_train[['year', 'year_squared', 'year_cubed']], df_train[selected_source])
+        rf_preds = rf.predict(df_test_input)
 
         df_compare = pd.DataFrame({
             "Year": test_years,
