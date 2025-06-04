@@ -647,9 +647,9 @@ elif page == "Future Energy Forecast":
 
     split_year = st.slider(
         "📆 Select Last Training Year:",
-        min_value=1965,
+        min_value=min_year,
         max_value=max_year - future_years,
-        value=2000
+        value=min_year
     )
 
     test_years = list(range(split_year + 1, split_year + future_years + 1))
