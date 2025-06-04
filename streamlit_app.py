@@ -592,14 +592,17 @@ elif page == "Future Energy Forecast":
     st.subheader("📈 Prophet Forecast")
     prophet_df = country_data.rename(columns={"year": "ds", selected_source: "y"})
     prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
-    prophet_df["y"] = np.log1p(prophet_df["y"])
 
-    prophet_model = Prophet(yearly_seasonality=False, seasonality_mode="multiplicative", changepoint_prior_scale=0.05)
+    prophet_model = Prophet(
+        yearly_seasonality=False,
+        weekly_seasonality=False,
+        daily_seasonality=False,
+        changepoint_prior_scale=0.1,
+    )
     prophet_model.fit(prophet_df)
 
-    future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y")
+    future_df = prophet_model.make_future_dataframe(periods=future_years, freq="YS")
     forecast = prophet_model.predict(future_df)
-    forecast["yhat"] = np.expm1(forecast["yhat"])
 
     prophet_plot = go.Figure()
     prophet_plot.add_trace(go.Scatter(x=country_data["year"], y=country_data[selected_source], mode="lines+markers", name="Historical"))
@@ -680,12 +683,15 @@ elif page == "Future Energy Forecast":
         # Prophet backtest
         prophet_bt = df_train.rename(columns={"year": "ds", selected_source: "y"})
         prophet_bt["ds"] = pd.to_datetime(prophet_bt["ds"], format="%Y")
-        prophet_bt["y"] = np.log1p(prophet_bt["y"])
-        model_prophet = Prophet(yearly_seasonality=False, seasonality_mode="multiplicative", changepoint_prior_scale=0.05)
+        model_prophet = Prophet(
+            yearly_seasonality=False,
+            weekly_seasonality=False,
+            daily_seasonality=False,
+            changepoint_prior_scale=0.1,
+        )
         model_prophet.fit(prophet_bt)
-        future_bt = model_prophet.make_future_dataframe(periods=future_years, freq="Y")
+        future_bt = model_prophet.make_future_dataframe(periods=future_years, freq="YS")
         forecast_bt = model_prophet.predict(future_bt)
-        forecast_bt["yhat"] = np.expm1(forecast_bt["yhat"])
         prophet_preds = forecast_bt[["ds", "yhat"]].tail(future_years)
         prophet_preds["year"] = prophet_preds["ds"].dt.year
 
