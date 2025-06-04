@@ -592,13 +592,21 @@ elif page == "Future Energy Forecast":
     st.subheader("📈 Prophet Forecast")
     prophet_df = country_data.rename(columns={"year": "ds", selected_source: "y"})
     prophet_df["ds"] = pd.to_datetime(prophet_df["ds"], format="%Y")
+    prophet_df["y"] = np.log1p(prophet_df["y"])
 
-    prophet_model = Prophet(yearly_seasonality=True)
+    prophet_model = Prophet(yearly_seasonality=False, seasonality_mode="multiplicative", changepoint_prior_scale=0.05)
     prophet_model.fit(prophet_df)
 
     future_df = prophet_model.make_future_dataframe(periods=future_years, freq="Y")
     forecast = prophet_model.predict(future_df)
-    st.plotly_chart(plot_plotly(prophet_model, forecast))
+    forecast["yhat"] = np.expm1(forecast["yhat"])
+
+    prophet_plot = go.Figure()
+    prophet_plot.add_trace(go.Scatter(x=country_data["year"], y=country_data[selected_source], mode="lines+markers", name="Historical"))
+    prophet_plot.add_trace(go.Scatter(x=forecast["ds"].dt.year.tail(future_years), y=forecast["yhat"].tail(future_years),
+                                     mode="lines+markers", name="Prophet Prediction", line=dict(color="blue")))
+    prophet_plot.update_layout(title="Prophet Forecast", xaxis_title="Year", yaxis_title="Predicted Consumption", template="plotly_white")
+    st.plotly_chart(prophet_plot)
 
     ### --- RANDOM FOREST --- ###
     st.subheader("🌲 Random Forest Forecast")
@@ -672,10 +680,12 @@ elif page == "Future Energy Forecast":
         # Prophet backtest
         prophet_bt = df_train.rename(columns={"year": "ds", selected_source: "y"})
         prophet_bt["ds"] = pd.to_datetime(prophet_bt["ds"], format="%Y")
-        model_prophet = Prophet(yearly_seasonality=True)
+        prophet_bt["y"] = np.log1p(prophet_bt["y"])
+        model_prophet = Prophet(yearly_seasonality=False, seasonality_mode="multiplicative", changepoint_prior_scale=0.05)
         model_prophet.fit(prophet_bt)
         future_bt = model_prophet.make_future_dataframe(periods=future_years, freq="Y")
         forecast_bt = model_prophet.predict(future_bt)
+        forecast_bt["yhat"] = np.expm1(forecast_bt["yhat"])
         prophet_preds = forecast_bt[["ds", "yhat"]].tail(future_years)
         prophet_preds["year"] = prophet_preds["ds"].dt.year
 
