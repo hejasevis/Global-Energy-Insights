@@ -576,15 +576,14 @@ elif page == "Future Energy Forecast":
 
     # Select country and energy type
     energy_cols = [col for col in df.columns if col.endswith("_consumption")]
-    df_forecast = df[["country", "year"] + energy_cols].dropna()
-    countries = sorted(df_forecast["country"].unique())
+    countries = sorted(df["country"].dropna().unique())
 
     selected_country = st.selectbox("🌍 Select a Country:", countries)
     selected_source = st.selectbox("⚡ Select Energy Type:", energy_cols)
     future_years = st.slider("🗓️ Years to Predict:", 1, 20, 5)
 
     # Filter data
-    country_data = df_forecast[df_forecast["country"] == selected_country][["year", selected_source]].dropna()
+    country_data = df[(df["country"] == selected_country)][["year", selected_source]].dropna().sort_values("year")
     if len(country_data) < 10:
         st.warning("⚠️ Not enough valid data points for this country and energy type.")
         st.stop()
