@@ -647,9 +647,9 @@ elif page == "Future Energy Forecast":
 
     split_year = st.slider(
         "📆 Select Last Training Year:",
-        min_value=min_year,
+        min_value=1965,
         max_value=max_year - future_years,
-        value=2015
+        value=2000
     )
 
     test_years = list(range(split_year + 1, split_year + future_years + 1))
@@ -707,3 +707,4 @@ elif page == "Future Energy Forecast":
         st.subheader("💡 Forecasting Insights")
         stronger = "Prophet" if rmse_prophet < rmse_rf else "Random Forest"
         st.success(f"🔍 Based on RMSE, the **{stronger}** model performed better in this backtesting scenario.")
+
