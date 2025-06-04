@@ -604,25 +604,27 @@ elif page == "Future Energy Forecast":
     st.subheader("🌲 Random Forest Forecast")
     rf_df = country_data.copy().reset_index(drop=True)
     rf_df["year_scaled"] = rf_df["year"] - rf_df["year"].min()
-    # lag features improve RF performance and avoid constant results
+    # create lagged features and model year-over-year change
     rf_df["lag1"] = rf_df[selected_source].shift(1)
     rf_df["lag2"] = rf_df[selected_source].shift(2)
     rf_df["lag3"] = rf_df[selected_source].shift(3)
+    rf_df["diff"] = rf_df[selected_source].diff()
     rf_df = rf_df.dropna()
 
     X_rf = rf_df[["year_scaled", "lag1", "lag2", "lag3"]]
-    y_rf = rf_df[selected_source]
+    y_rf = rf_df["diff"]
 
-    rf_model = RandomForestRegressor(n_estimators=200, max_depth=6, random_state=42)
+    rf_model = RandomForestRegressor(n_estimators=300, max_depth=8, random_state=42)
     rf_model.fit(X_rf, y_rf)
 
     last_year = int(rf_df["year"].max())
     future_years_rf = list(range(last_year + 1, last_year + future_years + 1))
     current_year_scaled = rf_df["year_scaled"].iloc[-1]
 
-    # iterative forecasting using lagged predictions
     history = rf_df[selected_source].tolist()[-3:]
+    last_value = history[-1]
     predictions_rf = []
+    # forecast year-over-year changes and accumulate
     for _ in future_years_rf:
         current_year_scaled += 1
         features = pd.DataFrame({
@@ -631,9 +633,11 @@ elif page == "Future Energy Forecast":
             "lag2": [history[-2]],
             "lag3": [history[-3]],
         })
-        pred = rf_model.predict(features)[0]
-        predictions_rf.append(pred)
-        history.append(pred)
+        diff_pred = rf_model.predict(features)[0]
+        next_val = last_value + diff_pred
+        predictions_rf.append(next_val)
+        history.append(next_val)
+        last_value = next_val
 
     rf_plot = go.Figure()
     rf_plot.add_trace(go.Scatter(x=future_years_rf, y=predictions_rf, mode="lines+markers", name="RF Prediction", line=dict(color="green")))
@@ -681,15 +685,22 @@ elif page == "Future Energy Forecast":
         lagged["lag1"] = lagged[selected_source].shift(1)
         lagged["lag2"] = lagged[selected_source].shift(2)
         lagged["lag3"] = lagged[selected_source].shift(3)
+        lagged["diff"] = lagged[selected_source].diff()
         lagged = lagged.dropna()
 
         train_df = lagged[lagged["year"] <= split_year]
         test_df = lagged[lagged["year"].isin(test_years)]
 
-        rf_back = RandomForestRegressor(n_estimators=200, max_depth=6, random_state=42)
-        rf_back.fit(train_df[["year_scaled", "lag1", "lag2", "lag3"]], train_df[selected_source])
+        rf_back = RandomForestRegressor(n_estimators=300, max_depth=8, random_state=42)
+        rf_back.fit(train_df[["year_scaled", "lag1", "lag2", "lag3"]], train_df["diff"])
 
-        rf_preds = rf_back.predict(test_df[["year_scaled", "lag1", "lag2", "lag3"]])
+        diff_preds = rf_back.predict(test_df[["year_scaled", "lag1", "lag2", "lag3"]])
+        last_known = country_data[country_data["year"] == split_year][selected_source].values[0]
+        rf_preds = []
+        # accumulate predicted differences to reconstruct levels
+        for d in diff_preds:
+            last_known += d
+            rf_preds.append(last_known)
 
         df_compare = pd.DataFrame({
             "Year": test_years,
