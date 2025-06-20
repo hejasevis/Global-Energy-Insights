@@ -1,0 +1,11 @@
+streamlit
+pandas
+plotly
+scikit-learn
+mlxtend
+matplotlib
+seaborn
+networkx
+streamlit-option-menu
+prophet
+Pillow
